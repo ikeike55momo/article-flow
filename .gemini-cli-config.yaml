@@ -1,0 +1,59 @@
+# Gemini CLI用設定ファイル
+project:
+  name: "SEO Article Generator with Fact-Check"
+  version: "2.1"
+  description: "ファクトチェック強化版SEO最適化記事自動生成システム"
+
+# コマンド設定
+commands:
+  article:
+    description: "SEO記事を生成（ファクトチェック付き）"
+    trigger_patterns:
+      - "についての記事を作成"
+      - "に関する記事"
+      - "のSEO記事"
+    execute: "INSTRUCTIONS_v2.md"  # WordPress完全対応版
+
+# Gemini特有の設定
+gemini_settings:
+  model: "gemini-pro"
+  temperature: 0.7
+  max_output_tokens: 8000
+  
+# ツール設定
+tools:
+  web_search:
+    enabled: true
+    max_queries_per_phase: 25
+  
+# ファイル読み込み
+context_files:
+  - path: "INSTRUCTIONS.md"
+    priority: "high"
+  - path: "config/*.yaml"
+    priority: "high"
+  - path: "prompts/*.md"
+    priority: "high"
+  - path: "assets/wordpress.css"
+    priority: "high"
+
+# 出力設定
+output:
+  format: "html"
+  save_to_file: true
+  create_artifact: true
+  filename_pattern: "output/{{date}}_{{title}}/final.html"
+
+# ワークフロー設定
+workflow:
+  enable_factcheck: true
+  min_factcheck_score: 90
+  min_quality_score: 85
+  phases:
+    - parse_request
+    - research
+    - structure
+    - writing
+    - factcheck
+    - optimization
+    - finalization

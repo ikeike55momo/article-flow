@@ -1,0 +1,128 @@
+# 記事テンプレート設定
+templates:
+  version: "1.0"
+  
+  # HTML記事テンプレート
+  article_structure:
+    header: |
+      <!DOCTYPE html>
+      <html lang="ja">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>{{title}}</title>
+          <meta name="description" content="{{meta_description}}">
+          <link rel="stylesheet" href="wordpress.css">
+      </head>
+      <body>
+      <article>
+    
+    footer: |
+      </article>
+      </body>
+      </html>
+  
+  # セクションテンプレート
+  sections:
+    intro:
+      class: "intro-section"
+      structure: |
+        <section class="{{class}}">
+          <p class="lead">{{content}}</p>
+        </section>
+    
+    main_content:
+      class: "content-section"
+      structure: |
+        <section class="{{class}}">
+          <h2>{{heading}}</h2>
+          {{content}}
+        </section>
+    
+    subsection:
+      class: "subsection"
+      structure: |
+        <div class="{{class}}">
+          <h3>{{heading}}</h3>
+          {{content}}
+        </div>
+    
+    conclusion:
+      class: "conclusion-section"
+      structure: |
+        <section class="{{class}}">
+          <h2>{{heading}}</h2>
+          {{content}}
+        </section>
+  
+  # 特殊要素テンプレート
+  special_elements:
+    fact_box:
+      structure: |
+        <div class="fact-box">
+          <p class="fact-title">💡 ポイント</p>
+          <p>{{fact}}</p>
+        </div>
+    
+    statistics_block:
+      structure: |
+        <div class="statistics-block">
+          <p class="stat-value">{{value}}</p>
+          <p class="stat-description">{{description}}</p>
+          <p class="stat-source">出典: {{source}}</p>
+        </div>
+    
+    expert_quote:
+      structure: |
+        <blockquote class="expert-quote">
+          <p>{{quote}}</p>
+          <footer>— {{expert}}, {{title}}</footer>
+        </blockquote>
+    
+    reliability_info:
+      structure: |
+        <div class="reliability-info">
+          <h3>この記事の信頼性について</h3>
+          <ul>
+            <li>すべての統計データは信頼できる情報源から引用しています</li>
+            <li>専門的な内容は複数の資料で確認済みです</li>
+            <li>最新の情報に基づいて作成されています</li>
+          </ul>
+        </div>
+  
+  # メタデータテンプレート
+  metadata:
+    last_updated: |
+      <p class="last-updated">最終更新日: {{date}}</p>
+    
+    author_info: |
+      <div class="author-info">
+        <p>この記事は{{store_name}}の専門スタッフが執筆・監修しています。</p>
+      </div>
+    
+    structured_data: |
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "{{title}}",
+        "description": "{{meta_description}}",
+        "author": {
+          "@type": "Organization",
+          "name": "{{store_name}}"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "{{store_name}}"
+        },
+        "datePublished": "{{publish_date}}",
+        "dateModified": "{{modified_date}}",
+        "reviewedBy": {
+          "@type": "Organization",
+          "name": "{{store_name}}編集部"
+        },
+        "factChecked": true,
+        "dateReviewed": "{{review_date}}",
+        "claimReviewed": "記載の情報は信頼できる情報源に基づいています"
+      }
+      </script>

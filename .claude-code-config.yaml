@@ -1,0 +1,32 @@
+# Claude Code用設定ファイル
+project_name: "SEO Article Generator with Fact-Check"
+version: "2.1"
+
+# 実行時の自動設定
+on_request:
+  match: "についての記事を作成"
+  execute: "INSTRUCTIONS_v2.md"  # WordPress完全対応版
+  
+# 使用するツール
+tools:
+  - web_search
+  - artifacts
+  
+# ファイル読み込み設定
+include_files:
+  - "INSTRUCTIONS.md"
+  - "config/*.yaml"
+  - "prompts/*.md"
+  - "assets/wordpress.css"
+
+# 出力設定
+output:
+  create_artifact: true
+  artifact_type: "text/html"
+  artifact_title: "WordPress用SEO記事（ファクトチェック済み）"
+  
+# ワークフロー設定
+workflow:
+  enable_factcheck: true
+  min_factcheck_score: 90
+  min_quality_score: 85

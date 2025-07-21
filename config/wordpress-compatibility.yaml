@@ -1,0 +1,44 @@
+# WordPress互換性設定
+wordpress_compatibility:
+  version: "1.0"
+  
+  # CSS戦略
+  css_strategy:
+    specificity_level: "high"  # low, medium, high
+    use_important: true
+    use_id_selectors: true
+    base_selector: "body .wp-blog-post"
+    
+  # 問題のある機能の回避
+  avoid_features:
+    - "counter-reset"  # 一部のテーマで動作しない
+    - "::before with content"  # 代替案を用意
+    - "grid"  # IE11対応が必要な場合
+    
+  # フォント設定
+  font_settings:
+    primary: "Noto Sans JP"
+    fallback: ["Meiryo", "Hiragino Sans", "sans-serif"]
+    avoid: ["Hiragino Kaku Gothic ProN"]  # 問題報告あり
+    
+  # 推奨HTML構造
+  html_structure:
+    wrapper_id: "nail-care-article"  # 詳細度確保用
+    wrapper_class: "wp-blog-post"
+    use_semantic_tags: true
+    
+  # デバッグ支援
+  debug_mode:
+    add_css_comments: true
+    log_conflicts: true
+    test_selectors:
+      - "#content .entry-content h2"
+      - ".site-content article h2"
+      - "#primary .entry-content h2"
+      
+  # 段階的修正戦略
+  fix_strategy:
+    phase1: "Add !important to critical styles"
+    phase2: "Increase specificity with body selector"
+    phase3: "Add ID selectors for components"
+    phase4: "Create child theme styles if needed"
