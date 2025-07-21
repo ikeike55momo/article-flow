@@ -42,7 +42,7 @@ output:
   format: "html"
   save_to_file: true
   create_artifact: true
-  filename_pattern: "output/{{date}}-{{title}}/final.html"
+  filename_pattern: "output/{{date}}-{{title_slug}}/final.html"
 
 # ワークフロー設定
 workflow:
