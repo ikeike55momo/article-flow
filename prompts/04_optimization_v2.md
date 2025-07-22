@@ -498,6 +498,18 @@ viewport: width=device-width,initial-scale=1
 </figure>
 ```
 
+### 5. CTAセクション（必須）
+
+**記事の最後に必ず以下のCTAセクションを配置する：**
+```html
+<!-- CTA -->
+<section class="cta-section">
+  <h2>健康で美しい爪を手に入れましょう</h2>
+  <p>薄い爪や割れやすい爪を改善したい方は、ぜひ私たちのサロンで専門ケアを受けてみてください。詳細は公式サイトで確認できます。</p>
+  <a href="https://beauty.hotpepper.jp/kr/slnH000618948/" class="cta-button">ご予約はこちら</a>
+</section>
+```
+
 ## 重要な注意事項
 - **単一HTMLブロックのみを返す（説明文なし）**
 - **CSS改変は絶対に禁止**

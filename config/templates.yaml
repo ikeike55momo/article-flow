@@ -89,6 +89,15 @@ templates:
             <li>最新の情報に基づいて作成されています</li>
           </ul>
         </div>
+    
+    cta_section:
+      structure: |
+        <!-- CTA -->
+        <section class="cta-section">
+          <h2>健康で美しい爪を手に入れましょう</h2>
+          <p>薄い爪や割れやすい爪を改善したい方は、ぜひ私たちのサロンで専門ケアを受けてみてください。詳細は公式サイトで確認できます。</p>
+          <a href="https://beauty.hotpepper.jp/kr/slnH000618948/" class="cta-button">ご予約はこちら</a>
+        </section>
   
   # メタデータテンプレート
   metadata:
