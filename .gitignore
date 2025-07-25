@@ -6,6 +6,7 @@
 *_api_key*
 google-credentials.json
 service-account.json
+article-flow-imagen-*.json
 
 # MCP個人設定
 .vscode/mcp.json.local

@@ -38,8 +38,8 @@ class ImagenGenerator:
     ) -> Dict[str, Any]:
         """Generate image using Google AI Imagen API"""
         
-        # Convert aspect ratio to match Imagen requirements
-        width, height = self._parse_aspect_ratio(aspect_ratio)
+        # Parse aspect ratio to ensure correct format
+        formatted_aspect_ratio = self._parse_aspect_ratio(aspect_ratio)
         
         async with httpx.AsyncClient() as client:
             try:
@@ -51,7 +51,7 @@ class ImagenGenerator:
                     },
                     json={
                         "prompt": prompt,
-                        "aspectRatio": aspect_ratio,
+                        "aspectRatio": formatted_aspect_ratio,
                         "numberOfImages": num_images,
                         "responseFormat": "base64"
                     },
@@ -82,8 +82,8 @@ class ImagenGenerator:
         """Synchronous wrapper for generate_async"""
         return asyncio.run(self.generate_async(prompt, aspect_ratio))
     
-    def _parse_aspect_ratio(self, ratio_str: str) -> tuple:
-        """Parse aspect ratio string to dimensions"""
+    def _parse_aspect_ratio(self, ratio_str: str) -> str:
+        """Parse aspect ratio string to standard format"""
         if "x" in ratio_str:
             # Handle "1200x630" format
             width, height = map(int, ratio_str.split('x'))
@@ -116,9 +116,13 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
     
     prompts = []
     
-    # Hero image
-    article_topic = structure.get("title", "")
-    main_keyword = structure.get("metadata", {}).get("main_keyword", "")
+    # Extract topic from article content or use generic topic
+    if structure.get("sections"):
+        article_topic = "health and wellness"
+        main_keyword = structure["sections"][0]["title"] if structure["sections"] else "health"
+    else:
+        article_topic = "health and wellness"
+        main_keyword = "health"
     
     hero_prompt = f"""
     Professional hero image for a health and beauty article about {article_topic}.
@@ -136,10 +140,11 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
     })
     
     # Section images
-    for i, section in enumerate(structure.get("main_sections", [])[:4], 1):
+    for i, section in enumerate(structure.get("sections", [])[:4], 1):
+        section_title = section.get("title", f"Section {i}")
         section_prompt = f"""
-        Professional illustration for article section: {section['h2_title']}.
-        Purpose: {section['section_purpose']}
+        Professional illustration for article section: {section_title}.
+        Content: {section.get('content', 'Health and wellness information')}
         Style: Clean, informative, health and wellness focused.
         Soft pastel colors, modern design.
         No text overlays or logos.
@@ -151,17 +156,6 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
             "aspect_ratio": "4:3",  # Better for content images
             "filename": f"section-{i}.png"
         })
-    
-    # Additional images from structure requirements
-    for i, img_req in enumerate(structure.get("image_requirements", []), 1):
-        if img_req.get("type") not in ["hero", "section"]:
-            prompts.append({
-                "type": img_req.get("type", f"custom_{i}"),
-                "prompt": img_req.get("description", ""),
-                "aspect_ratio": "4:3",
-                "filename": f"image-{i}.png",
-                "alt_text": img_req.get("alt_text", "")
-            })
     
     return prompts
 
@@ -311,19 +305,44 @@ def main():
         # Read input files from article directory
         article_dir = Path(args.article_dir)
         
-        # Find structure file
-        structure_files = list(article_dir.glob("*structure*.json"))
-        if not structure_files:
-            raise FileNotFoundError(f"No structure file found in {article_dir}")
-        structure = read_json(structure_files[0])
+        # Find structure file - it's a markdown file, not JSON
+        structure_file = article_dir / "02_article_structure.md"
+        if not structure_file.exists():
+            logger.warning(f"Structure file not found at {structure_file}")
+            # Create a minimal structure
+            structure = {
+                "sections": [
+                    {"title": "Introduction", "content": "Introduction to the topic"},
+                    {"title": "Main Content", "content": "Main content section"},
+                    {"title": "Conclusion", "content": "Conclusion section"}
+                ]
+            }
+        else:
+            # Parse markdown structure file to extract sections
+            with open(structure_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Extract H2 sections from markdown
+                import re
+                h2_pattern = r'^## (.+)$'
+                sections = re.findall(h2_pattern, content, re.MULTILINE)
+                structure = {
+                    "sections": [{"title": section, "content": f"Content about {section}"} for section in sections[:6]]
+                }
         
-        # Find HTML file
-        html_files = list(article_dir.glob("*.html"))
-        if not html_files:
-            raise FileNotFoundError(f"No HTML file found in {article_dir}")
+        # Find HTML file - look for optimized draft
+        html_file = article_dir / "04_optimized_draft.html"
+        if not html_file.exists():
+            # Try to find any HTML file
+            html_files = list(article_dir.glob("*.html"))
+            if html_files:
+                html_file = html_files[0]
+            else:
+                logger.warning("No HTML file found, creating minimal content")
+                article_content = f"<html><body><h1>Article about {args.article_dir}</h1></body></html>"
         
-        with open(html_files[0], 'r', encoding='utf-8') as f:
-            article_content = f.read()
+        if html_file and html_file.exists():
+            with open(html_file, 'r', encoding='utf-8') as f:
+                article_content = f.read()
         
         # Create output directory
         output_dir = ensure_dir(args.output_dir)

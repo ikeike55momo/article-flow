@@ -472,45 +472,11 @@ jobs:
           pip install -r requirements.txt
 
       # Image generation using Imagen
-      - name: Debug - Check available files
-        run: |
-          echo "=== Files in article directory ==="
-          ls -la output/${{ needs.initialize-and-analyze.outputs.article_id }}/ || echo "Directory not found"
-          echo "=== JSON files ==="
-          ls -la output/${{ needs.initialize-and-analyze.outputs.article_id }}/*.json || echo "No JSON files"
-          echo "=== HTML files ==="
-          ls -la output/${{ needs.initialize-and-analyze.outputs.article_id }}/*.html || echo "No HTML files"
-      
       - name: Generate Images with Imagen
         run: |
-          # Check if required files exist
-          if [ -f "output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase3_structure.json" ]; then
-            # Use phase3_structure.json if it exists
-            cp output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase3_structure.json \
-               output/${{ needs.initialize-and-analyze.outputs.article_id }}/structure.json
-          elif [ -f "output/${{ needs.initialize-and-analyze.outputs.article_id }}/02_article_structure.json" ]; then
-            # Use 02_article_structure.json if it exists
-            cp output/${{ needs.initialize-and-analyze.outputs.article_id }}/02_article_structure.json \
-               output/${{ needs.initialize-and-analyze.outputs.article_id }}/structure.json
-          fi
-          
-          # Create dummy structure file if none exists
-          if [ ! -f "output/${{ needs.initialize-and-analyze.outputs.article_id }}/structure.json" ]; then
-            echo '{"sections": [{"title": "Introduction", "content": "Article about ${{ inputs.topic }}"}]}' > \
-              output/${{ needs.initialize-and-analyze.outputs.article_id }}/structure.json
-          fi
-          
-          # Create dummy HTML file if none exists
-          if ! ls output/${{ needs.initialize-and-analyze.outputs.article_id }}/*.html 1> /dev/null 2>&1; then
-            echo '<html><body><h1>${{ inputs.topic }}</h1><p>Article content</p></body></html>' > \
-              output/${{ needs.initialize-and-analyze.outputs.article_id }}/article.html
-          fi
-          
-          # Run image generation
           python github-actions/scripts/generate_images_imagen.py \
             --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
-            --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images \
-            --log-level DEBUG || echo "Image generation failed, but continuing workflow"
+            --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
