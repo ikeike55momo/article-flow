@@ -474,7 +474,29 @@ jobs:
       # Setup Google Cloud authentication for Vertex AI
       - name: Setup Google Cloud credentials
         run: |
-          echo '${{ secrets.GOOGLE_CLOUD_SA_KEY }}' | base64 -d > /tmp/gcp-key.json
+          # Create credentials file using Python to avoid shell escaping issues
+          python3 -c "
+          import base64
+          import os
+          import json
+          
+          # Get the base64 encoded secret
+          encoded_secret = os.environ['GOOGLE_CLOUD_SA_KEY']
+          
+          # Decode and write to file
+          decoded_json = base64.b64decode(encoded_secret).decode('utf-8')
+          
+          # Verify it's valid JSON
+          json.loads(decoded_json)
+          
+          # Write to file
+          with open('/tmp/gcp-key.json', 'w') as f:
+              f.write(decoded_json)
+          
+          print('Google Cloud credentials file created successfully')
+          "
+        env:
+          GOOGLE_CLOUD_SA_KEY: ${{ secrets.GOOGLE_CLOUD_SA_KEY }}
 
       # Image generation using Vertex AI Imagen
       - name: Generate Images with Vertex AI Imagen
@@ -483,7 +505,8 @@ jobs:
             --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
             --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
         env:
-          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_CLOUD_PROJECT: article-flow-imagen
+          GCP_PROJECT: article-flow-imagen
           VERTEX_AI_LOCATION: us-central1
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
 
