@@ -114,11 +114,40 @@ jobs:
 
       - name: Save analysis results
         run: |
-          echo '${{ steps.analyze.outputs.result }}' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json
+          # Debug: Show what Claude returned
+          echo "Claude output:"
+          echo '${{ steps.analyze.outputs.result }}'
           
-          # Extract for output
-          MAIN_KEYWORD=$(echo '${{ steps.analyze.outputs.result }}' | jq -r '.main_keyword')
-          RESEARCH_QUERIES=$(echo '${{ steps.analyze.outputs.result }}' | jq -c '.research_queries')
+          # Try to extract JSON from the output
+          echo '${{ steps.analyze.outputs.result }}' | grep -o '{.*}' | jq '.' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json || {
+            echo "Failed to parse JSON, saving raw output"
+            echo '${{ steps.analyze.outputs.result }}' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.txt
+            # Create a default JSON for the next phase
+            cat > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json << 'EOF'
+          {
+            "main_keyword": "${{ inputs.topic }}",
+            "sub_keywords": [],
+            "research_queries": [
+              "${{ inputs.topic }} とは",
+              "${{ inputs.topic }} 最新情報 2025",
+              "${{ inputs.topic }} 効果",
+              "${{ inputs.topic }} 方法",
+              "${{ inputs.topic }} 注意点",
+              "${{ inputs.topic }} メリット デメリット",
+              "${{ inputs.topic }} 専門家 意見",
+              "${{ inputs.topic }} 統計データ",
+              "${{ inputs.topic }} 初心者向け",
+              "${{ inputs.topic }} よくある質問"
+            ],
+            "content_angle": "総合ガイド",
+            "tone": "親しみやすく専門的"
+          }
+          EOF
+          }
+          
+          # Extract for output (with fallback)
+          MAIN_KEYWORD=$(jq -r '.main_keyword // "${{ inputs.topic }}"' output/${{ steps.init.outputs.article_id }}/phase1_analysis.json)
+          RESEARCH_QUERIES=$(jq -c '.research_queries' output/${{ steps.init.outputs.article_id }}/phase1_analysis.json)
           
           echo "main_keyword=${MAIN_KEYWORD}" >> $GITHUB_OUTPUT
           echo "research_queries=${RESEARCH_QUERIES}" >> $GITHUB_OUTPUT
@@ -173,9 +202,22 @@ jobs:
           genai.configure(api_key=os.environ['GEMINI_API_KEY'])
           model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
-          # Read analysis results
-          with open(sys.argv[1], 'r', encoding='utf-8') as f:
-              analysis = json.load(f)
+          # Read analysis results with error handling
+          try:
+              with open(sys.argv[1], 'r', encoding='utf-8') as f:
+                  analysis = json.load(f)
+          except json.JSONDecodeError as e:
+              print(f"Error parsing JSON: {e}")
+              print("Using default queries")
+              analysis = {
+                  "research_queries": [
+                      "${{ inputs.topic }} とは",
+                      "${{ inputs.topic }} 最新情報 2025",
+                      "${{ inputs.topic }} 効果",
+                      "${{ inputs.topic }} 方法",
+                      "${{ inputs.topic }} 注意点"
+                  ]
+              }
 
           queries = analysis.get('research_queries', [])[:20]
           results = []
