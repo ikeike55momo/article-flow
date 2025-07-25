@@ -47,6 +47,7 @@ jobs:
   # ジョブ1: 初期化とリクエスト解析
   initialize-and-analyze:
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 10
     outputs:
       article_id: ${{ steps.init.outputs.article_id }}
@@ -133,6 +134,7 @@ jobs:
   research:
     needs: initialize-and-analyze
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 20
     
     steps:
@@ -262,6 +264,7 @@ jobs:
   structure-and-write:
     needs: [initialize-and-analyze, research]
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 25
     
     steps:
@@ -315,6 +318,7 @@ jobs:
   factcheck:
     needs: [initialize-and-analyze, structure-and-write]
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 15
     
     steps:
@@ -349,6 +353,7 @@ jobs:
   seo-optimization:
     needs: [initialize-and-analyze, structure-and-write]
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 15
     
     steps:
@@ -386,6 +391,7 @@ jobs:
     if: ${{ inputs.enable_image_generation }}
     needs: [initialize-and-analyze, structure-and-write]
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 20
     
     steps:
@@ -428,6 +434,7 @@ jobs:
     needs: [initialize-and-analyze, factcheck, seo-optimization, generate-images]
     if: always()
     runs-on: ubuntu-latest
+    environment: GA
     timeout-minutes: 15
     
     steps:
