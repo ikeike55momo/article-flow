@@ -95,7 +95,7 @@ jobs:
             ターゲット読者: ${{ inputs.target_audience }}
             目標文字数: ${{ inputs.word_count }}
 
-            以下の形式でJSONで返してください：
+            以下の形式でJSONを作成し、output/${{ steps.init.outputs.article_id }}/phase1_analysis.json に保存してください：
             {
               "main_keyword": "メインキーワード",
               "sub_keywords": ["サブキーワード1", "サブキーワード2"],
@@ -109,44 +109,50 @@ jobs:
             - research_queriesは15-25個生成
             - 信頼性の高い情報源を想定したクエリ
             - 最新情報、統計、専門家意見を含む
-          allowed_tools: "View"
+            - 必ずJSONファイルとして保存すること
+          allowed_tools: "View,Write"
+          claude_env: |
+            ARTICLE_ID=${{ steps.init.outputs.article_id }}
           max_turns: "3"
 
-      - name: Save analysis results
+      - name: Verify and prepare analysis results
         run: |
-          # Debug: Show what Claude returned
-          echo "Claude output:"
-          echo '${{ steps.analyze.outputs.result }}'
-          
-          # Try to extract JSON from the output
-          echo '${{ steps.analyze.outputs.result }}' | grep -o '{.*}' | jq '.' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json || {
-            echo "Failed to parse JSON, saving raw output"
-            echo '${{ steps.analyze.outputs.result }}' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.txt
+          # Check if Claude created the file
+          if [ -f "output/${{ steps.init.outputs.article_id }}/phase1_analysis.json" ]; then
+            echo "Phase 1 analysis file found"
+            cat output/${{ steps.init.outputs.article_id }}/phase1_analysis.json
+          else
+            echo "Phase 1 analysis file not found, creating default"
             # Create a default JSON for the next phase
-            cat > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json << 'EOF'
+            cat > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json << EOF
           {
             "main_keyword": "${{ inputs.topic }}",
             "sub_keywords": [],
             "research_queries": [
               "${{ inputs.topic }} とは",
               "${{ inputs.topic }} 最新情報 2025",
-              "${{ inputs.topic }} 効果",
-              "${{ inputs.topic }} 方法",
-              "${{ inputs.topic }} 注意点",
+              "${{ inputs.topic }} 効果 研究結果",
+              "${{ inputs.topic }} 方法 手順",
+              "${{ inputs.topic }} 注意点 リスク",
               "${{ inputs.topic }} メリット デメリット",
               "${{ inputs.topic }} 専門家 意見",
               "${{ inputs.topic }} 統計データ",
               "${{ inputs.topic }} 初心者向け",
-              "${{ inputs.topic }} よくある質問"
+              "${{ inputs.topic }} よくある質問",
+              "${{ inputs.topic }} 厳生労働省",
+              "${{ inputs.topic }} 健康被害",
+              "${{ inputs.topic }} 治療法",
+              "${{ inputs.topic }} 予防法",
+              "${{ inputs.topic }} 成功事例"
             ],
             "content_angle": "総合ガイド",
             "tone": "親しみやすく専門的"
           }
           EOF
-          }
+          fi
           
-          # Extract for output (with fallback)
-          MAIN_KEYWORD=$(jq -r '.main_keyword // "${{ inputs.topic }}"' output/${{ steps.init.outputs.article_id }}/phase1_analysis.json)
+          # Extract for output
+          MAIN_KEYWORD=$(jq -r '.main_keyword' output/${{ steps.init.outputs.article_id }}/phase1_analysis.json)
           RESEARCH_QUERIES=$(jq -c '.research_queries' output/${{ steps.init.outputs.article_id }}/phase1_analysis.json)
           
           echo "main_keyword=${MAIN_KEYWORD}" >> $GITHUB_OUTPUT
@@ -187,6 +193,14 @@ jobs:
           pip install google-generativeai httpx
 
       # Phase 2: Research using Gemini API directly
+      - name: Debug - Check phase1 output
+        run: |
+          echo "=== Checking phase1 output files ==="
+          ls -la output/${{ needs.initialize-and-analyze.outputs.article_id }}/ || echo "Directory not found"
+          echo "=== Content of phase1_analysis.json ==="
+          cat output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase1_analysis.json || echo "File not found"
+          echo "=== End of debug ==="
+
       - name: Phase 2 - Research with Gemini
         id: research
         run: |
