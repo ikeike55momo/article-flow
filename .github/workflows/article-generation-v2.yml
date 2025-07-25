@@ -516,13 +516,28 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
           
-      # Image generation using Vertex AI Imagen
-      - name: Generate Images with Vertex AI Imagen
+      # Image generation - Try multiple providers
+      - name: Generate Images
         run: |
-          python github-actions/scripts/generate_images_imagen.py \
-            --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
-            --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
+          # Try DALL-E 3 first (immediately available)
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "Using OpenAI DALL-E 3 for image generation..."
+            python github-actions/scripts/generate_images_dalle.py \
+              --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
+              --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images \
+              --quality standard
+          # Try Vertex AI Imagen (if allowlisted)
+          elif [ -f "/tmp/gcp-key.json" ]; then
+            echo "Attempting Vertex AI Imagen..."
+            python github-actions/scripts/generate_images_imagen.py \
+              --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
+              --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images || \
+            echo "Imagen failed (likely not allowlisted), falling back to placeholders..."
+          else
+            echo "No image generation API configured, using placeholders..."
+          fi
         env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_CLOUD_PROJECT: article-flow-imagen
           GCP_PROJECT: article-flow-imagen
           VERTEX_AI_LOCATION: us-east1
