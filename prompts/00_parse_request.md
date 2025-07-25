@@ -42,6 +42,18 @@
 }
 ```
 
+## ファイル保存
+
+1. 出力ディレクトリの作成：
+   ```bash
+   mkdir -p output/$(date +%Y-%m-%d)-{title_slug}
+   ```
+
+2. パース結果の保存：
+   ```
+   output/YYYY-MM-DD-{title_slug}/00_parsed_request.json
+   ```
+
 ## 推測のガイドライン
 
 ### タイトル生成のルール

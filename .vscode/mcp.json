@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "google-ai-imagen": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-google-ai"
+      ],
+      "env": {
+        "GOOGLE_AI_API_KEY": "${GOOGLE_AI_API_KEY}",
+        "GOOGLE_AI_PROJECT_ID": "${GOOGLE_CLOUD_PROJECT}",
+        "GOOGLE_AI_LOCATION": "us-central1"
+      },
+      "settings": {
+        "imageGeneration": {
+          "enabled": true,
+          "model": "imagen-3",
+          "defaultParams": {
+            "width": 800,
+            "height": 600,
+            "numImages": 2,
+            "aspectRatio": "4:3",
+            "quality": "high"
+          }
+        }
+      }
+    }
+  }
+}

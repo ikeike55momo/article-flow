@@ -104,3 +104,46 @@
 - 最適化完了項目: SEO, LLMO, WordPress互換性, ファクトチェック
 - 信頼性レベル: {{reliability_level}}
 ```
+
+## ファイル保存
+
+1. 最終成果物（WordPress貼り付け用）：
+   ```
+   output/{date}-{title_slug}/final.html
+   ```
+
+2. 品質レポート：
+   ```
+   output/{date}-{title_slug}/05_quality_report.json
+   ```
+
+レポート形式：
+```json
+{
+  "title": "記事タイトル",
+  "word_count": 総文字数,
+  "quality_score": 0-100,
+  "factcheck_score": 0-100,
+  "seo_metrics": {
+    "keyword_density": 数値,
+    "meta_complete": true/false,
+    "structured_data": true/false
+  },
+  "completed_at": "ISO 8601形式の日時"
+}
+```
+
+## 最終確認
+
+**必須**: 以下のファイルがすべて作成されていることを確認：
+- `00_parsed_request.json`
+- `01_research_data.md`
+- `02_article_structure.md`
+- `03_draft.md`
+- `03_5_factchecked_draft.md`
+- `03_5_factcheck_report.json`
+- `04_optimized_draft.html`
+- `04_5_image_metadata.json`
+- `05_quality_report.json`
+- `final.html` ←**最重要**
+- `images/` ディレクトリ（画像ファイル）

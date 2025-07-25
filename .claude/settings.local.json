@@ -1,7 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:medium.com)",
+      "Bash(chmod:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(pip install:*)",
+      "Bash(python3:*)",
+      "Bash(dos2unix:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

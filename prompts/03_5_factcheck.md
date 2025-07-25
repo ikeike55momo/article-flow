@@ -131,6 +131,37 @@
    - 信頼性が確保された内容
    - 店舗公式として適切な表現
 
+## ファイル保存
+
+1. ファクトチェック済み原稿：
+   ```
+   output/{date}-{title_slug}/03_5_factchecked_draft.md
+   ```
+
+2. ファクトチェックレポート：
+   ```
+   output/{date}-{title_slug}/03_5_factcheck_report.json
+   ```
+
+レポート形式：
+```json
+{
+  "total_checks": 数値,
+  "issues_found": 数値,
+  "fixes_applied": 数値,
+  "factual_accuracy_score": 0-100,
+  "issues": [
+    {
+      "type": "red|yellow",
+      "location": "場所",
+      "original": "元の文",
+      "fixed": "修正後",
+      "source": "裏付け情報源"
+    }
+  ]
+}
+```
+
 ## 重要な注意事項
 
 店舗の信頼性を守るため：

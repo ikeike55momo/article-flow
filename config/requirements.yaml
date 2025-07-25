@@ -43,6 +43,26 @@ requirements:
     responsive: true
     wordpress_compatible: true
     
+  # 画像要件
+  images:
+    generation_enabled: true
+    format: "webp"
+    dimensions:
+      width: 800
+      height: 600
+    quality: 85
+    max_filesize_kb: 200
+    alt_text_length:
+      min: 80
+      max: 120
+    seo_requirements:
+      - "メインキーワードを含む"
+      - "具体的で説明的"
+      - "視覚的内容を正確に記述"
+    per_article:
+      min: 6
+      max: 8
+    
   # コンプライアンス要件
   compliance:
     copyright: "オリジナルコンテンツ必須"

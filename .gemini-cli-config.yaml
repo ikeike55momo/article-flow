@@ -20,11 +20,24 @@ gemini_settings:
   temperature: 0.7
   max_output_tokens: 8000
   
+  # 画像生成設定（Gemini CLIネイティブ機能）
+  image_generation:
+    enabled: true
+    images_per_h2: 1
+    style: "professional, clean, informative"
+    save_to_output: true
+    auto_optimize: true
+  
 # ツール設定
 tools:
   web_search:
     enabled: true
     max_queries_per_phase: 25
+  image_generation:
+    enabled: true
+    save_images: true
+    optimize_for_web: true
+    add_alt_text: true
   
 # ファイル読み込み
 context_files:
@@ -42,7 +55,20 @@ output:
   format: "html"
   save_to_file: true
   create_artifact: true
-  filename_pattern: "output/{{date}}-{{title_slug}}/final.html"
+  create_directory: true
+  directory_pattern: "output/{{date}}-{{title_slug}}"
+  save_all_phases: true
+  files:
+    parsed_request: "00_parsed_request.json"
+    research_data: "01_research_data.md"
+    article_structure: "02_article_structure.md"
+    draft: "03_draft.md"
+    factchecked_draft: "03_5_factchecked_draft.md"
+    factcheck_report: "03_5_factcheck_report.json"
+    optimized_draft: "04_optimized_draft.html"
+    image_metadata: "04_5_image_metadata.json"
+    quality_report: "05_quality_report.json"
+    final_output: "final.html"
 
 # ワークフロー設定
 workflow:
@@ -56,4 +82,5 @@ workflow:
     - writing
     - factcheck
     - optimization
+    - image_generation
     - finalization

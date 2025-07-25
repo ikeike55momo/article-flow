@@ -1,0 +1,53 @@
+# 環境変数とセキュリティ
+.env
+.env.local
+.env.*.local
+*.key
+*_api_key*
+google-credentials.json
+service-account.json
+
+# MCP個人設定
+.vscode/mcp.json.local
+.vscode/settings.local.json
+
+# 認証情報
+credentials/
+auth/
+secrets/
+
+# 出力ファイル
+output/
+temp/
+cache/
+*.log
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# IDEファイル
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# 一時ファイル
+*.tmp
+*.temp
+*.bak
+*.backup

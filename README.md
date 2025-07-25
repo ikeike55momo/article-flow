@@ -27,6 +27,17 @@ gemini "爪ケアについての記事を作成して"
 claude-code "爪ケアについての記事を作成して store_url=https://example.com/ target=セルフケア志向の女性"
 ```
 
+### 出力確認
+生成された記事は以下に保存されます：
+```bash
+# 例：2025年1月23日に「爪ケア」の記事を生成した場合
+output/2025-01-23-nail-care-guide/
+├── final.html          # WordPressに貼り付ける最終HTML
+├── 01_research_data.md # リサーチ結果
+├── 03_draft.md        # 初稿
+└── その他の中間ファイル
+```
+
 ## システム構成
 
 ```
@@ -51,6 +62,18 @@ claude-code "爪ケアについての記事を作成して store_url=https://exa
 ├── assets/                       
 │   └── wordpress.css            # WordPress用CSS
 └── output/                      # 出力ディレクトリ
+    └── YYYY-MM-DD-{title}/      # 日付とタイトルのディレクトリ
+        ├── 00_parsed_request.json
+        ├── 01_research_data.md
+        ├── 02_article_structure.md
+        ├── 03_draft.md
+        ├── 03_5_factchecked_draft.md
+        ├── 03_5_factcheck_report.json
+        ├── 04_optimized_draft.html
+        ├── 04_5_image_metadata.json
+        ├── 05_quality_report.json
+        ├── final.html          # 最終成果物
+        └── images/             # 生成画像
 ```
 
 ## ワークフロー

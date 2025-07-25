@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "google-ai-imagen": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd /mnt/c/article-flow && source .env && python3 scripts/imagen-mcp-server.py"
+      ]
+    }
+  }
+}

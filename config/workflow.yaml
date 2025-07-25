@@ -40,6 +40,17 @@ workflow:
       prompt: "prompts/04_optimization_v2.md"
       # CSSは完全にインラインで記述するため、外部アセット不要
       
+    - id: "image_generation"
+      name: "AI画像生成・最適化"
+      prompt: "prompts/04_5_image_generation.md"
+      settings:
+        images_per_h2: 1
+        generate_variations: 2
+        auto_optimize: true
+      output:
+        - "04_5_generated_images.json"
+        - "output/images/"
+      
     - id: "finalization"
       name: "最終調整・品質保証"
       prompt: "prompts/05_finalization.md"
