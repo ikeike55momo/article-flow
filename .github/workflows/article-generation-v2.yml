@@ -1,0 +1,526 @@
+name: Article Generation Pipeline v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: '記事のトピック'
+        required: true
+        type: string
+      store_url:
+        description: '店舗URL（オプション）'
+        required: false
+        type: string
+        default: ''
+      target_audience:
+        description: 'ターゲット読者'
+        required: false
+        type: choice
+        default: 'セルフケア志向の女性'
+        options:
+          - 'セルフケア志向の女性'
+          - '健康意識の高い男性'
+          - 'シニア層'
+          - '若年層'
+          - 'ファミリー層'
+      word_count:
+        description: '目標文字数'
+        required: false
+        type: string
+        default: '3200'
+      auto_publish:
+        description: 'Google Driveに自動アップロード'
+        type: boolean
+        default: true
+      enable_image_generation:
+        description: '画像生成を有効化'
+        type: boolean
+        default: true
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  RETRY_ATTEMPTS: '3'
+  RETRY_WAIT_SECONDS: '30'
+
+jobs:
+  # ジョブ1: 初期化とリクエスト解析
+  initialize-and-analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      article_id: ${{ steps.init.outputs.article_id }}
+      main_keyword: ${{ steps.analyze.outputs.main_keyword }}
+      research_queries: ${{ steps.analyze.outputs.research_queries }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize article generation
+        id: init
+        run: |
+          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_$(echo "${{ inputs.topic }}" | tr ' ' '_' | tr -cd '[:alnum:]_')
+          echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
+          echo "Article ID: ${ARTICLE_ID}"
+          
+          # Create output directory
+          mkdir -p output/${ARTICLE_ID}
+          
+          # Save input parameters
+          cat > output/${ARTICLE_ID}/params.json << EOF
+          {
+            "topic": "${{ inputs.topic }}",
+            "store_url": "${{ inputs.store_url }}",
+            "target_audience": "${{ inputs.target_audience }}",
+            "word_count": "${{ inputs.word_count }}",
+            "auto_publish": ${{ inputs.auto_publish }},
+            "enable_image_generation": ${{ inputs.enable_image_generation }},
+            "article_id": "${ARTICLE_ID}",
+            "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      # Phase 1: Request Analysis using Claude Code Base Action
+      - name: Phase 1 - Request Analysis
+        id: analyze
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            以下の記事生成リクエストを分析してください：
+
+            トピック: ${{ inputs.topic }}
+            ターゲット読者: ${{ inputs.target_audience }}
+            目標文字数: ${{ inputs.word_count }}
+
+            以下の形式でJSONで返してください：
+            {
+              "main_keyword": "メインキーワード",
+              "sub_keywords": ["サブキーワード1", "サブキーワード2"],
+              "search_intents": ["検索意図1", "検索意図2"],
+              "research_queries": ["リサーチクエリ1", "リサーチクエリ2", ...],
+              "content_angle": "コンテンツの切り口",
+              "tone": "記事のトーン"
+            }
+
+            注意事項：
+            - research_queriesは15-25個生成
+            - 信頼性の高い情報源を想定したクエリ
+            - 最新情報、統計、専門家意見を含む
+          allowed_tools: "View"
+          max_tokens: 2048
+          temperature: 0.7
+
+      - name: Save analysis results
+        run: |
+          echo '${{ steps.analyze.outputs.result }}' > output/${{ steps.init.outputs.article_id }}/phase1_analysis.json
+          
+          # Extract for output
+          MAIN_KEYWORD=$(echo '${{ steps.analyze.outputs.result }}' | jq -r '.main_keyword')
+          RESEARCH_QUERIES=$(echo '${{ steps.analyze.outputs.result }}' | jq -c '.research_queries')
+          
+          echo "main_keyword=${MAIN_KEYWORD}" >> $GITHUB_OUTPUT
+          echo "research_queries=${RESEARCH_QUERIES}" >> $GITHUB_OUTPUT
+
+      - name: Upload phase artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-${{ steps.init.outputs.article_id }}
+          path: output/${{ steps.init.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ2: Web検索（Gemini API使用）
+  research:
+    needs: initialize-and-analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase1-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Gemini dependencies
+        run: |
+          pip install google-generativeai httpx
+
+      # Phase 2: Research using Gemini API directly
+      - name: Phase 2 - Research with Gemini
+        id: research
+        run: |
+          # Create research script
+          cat > research_with_gemini.py << 'EOF'
+          import os
+          import sys
+          import json
+          import google.generativeai as genai
+          from datetime import datetime
+
+          # Configure Gemini
+          genai.configure(api_key=os.environ['GEMINI_API_KEY'])
+          model = genai.GenerativeModel('gemini-2.0-flash-exp')
+
+          # Read analysis results
+          with open(sys.argv[1], 'r', encoding='utf-8') as f:
+              analysis = json.load(f)
+
+          queries = analysis.get('research_queries', [])[:20]
+          results = []
+
+          for i, query in enumerate(queries):
+              print(f"Searching ({i+1}/{len(queries)}): {query}")
+              
+              prompt = f"""
+              Web検索を実行: "{query}"
+              
+              優先順位：
+              1. 政府機関（.go.jp, .gov）
+              2. 学術機関（.ac.jp, .edu）
+              3. 医学会・専門団体
+              4. 大手メディア
+              
+              以下の形式でJSONで返してください：
+              {{
+                "query": "{query}",
+                "results": [
+                  {{
+                    "url": "URL",
+                    "title": "タイトル",
+                    "source_type": "government/academic/medical/industry/media",
+                    "reliability_score": 1-10,
+                    "key_findings": ["重要な発見"],
+                    "publication_date": "YYYY-MM-DD"
+                  }}
+                ]
+              }}
+              """
+              
+              try:
+                  response = model.generate_content(
+                      prompt,
+                      tools=[genai.protos.Tool(
+                          google_search=genai.protos.GoogleSearch()
+                      )],
+                      generation_config=genai.GenerationConfig(
+                          temperature=1.0,
+                          max_output_tokens=2048
+                      )
+                  )
+                  
+                  # Parse response
+                  text = response.text
+                  json_start = text.find('{')
+                  json_end = text.rfind('}') + 1
+                  if json_start >= 0 and json_end > json_start:
+                      result = json.loads(text[json_start:json_end])
+                      results.append(result)
+                  
+              except Exception as e:
+                  print(f"Error for query '{query}': {e}")
+                  results.append({"query": query, "results": [], "error": str(e)})
+
+          # Save results
+          output = {
+              "research_queries": queries,
+              "search_results": results,
+              "completed_at": datetime.utcnow().isoformat(),
+              "total_results": sum(len(r.get("results", [])) for r in results)
+          }
+
+          with open(sys.argv[2], 'w', encoding='utf-8') as f:
+              json.dump(output, f, ensure_ascii=False, indent=2)
+
+          print(f"Research completed: {len([r for r in results if r.get('results')])} successful queries")
+          EOF
+          
+          # Run research
+          python research_with_gemini.py \
+            output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase1_analysis.json \
+            output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase2_research.json
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Upload research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ3-4: 構成計画と執筆
+  structure-and-write:
+    needs: [initialize-and-analyze, research]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          merge-multiple: true
+
+      # Phase 3: Structure Planning
+      - name: Phase 3 - Structure Planning
+        id: structure
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/03_structure.md
+          allowed_tools: "View,Write"
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+            TOPIC=${{ inputs.topic }}
+            TARGET_AUDIENCE=${{ inputs.target_audience }}
+            WORD_COUNT=${{ inputs.word_count }}
+          max_tokens: 4096
+
+      # Phase 4: Writing
+      - name: Phase 4 - Writing
+        id: writing
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/04_writing.md
+          allowed_tools: "View,Write,Edit"
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+            TOPIC=${{ inputs.topic }}
+            WORD_COUNT=${{ inputs.word_count }}
+          max_tokens: 8192
+
+      - name: Upload writing artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ5-6: ファクトチェックとSEO最適化（並列実行）
+  factcheck:
+    needs: [initialize-and-analyze, structure-and-write]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          merge-multiple: true
+
+      # Phase 5: Fact Check
+      - name: Phase 5 - Fact Check
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/05_factcheck.md
+          allowed_tools: "View,Edit"
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+          max_tokens: 4096
+
+      - name: Upload factcheck artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          retention-days: 30
+
+  seo-optimization:
+    needs: [initialize-and-analyze, structure-and-write]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          merge-multiple: true
+
+      # Phase 6: SEO Optimization
+      - name: Phase 6 - SEO Optimization
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/06_seo.md
+          allowed_tools: "View,Write,Edit"
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+            MAIN_KEYWORD=${{ needs.initialize-and-analyze.outputs.main_keyword }}
+          max_tokens: 8192
+
+      - name: Upload SEO artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ7: 画像生成（並列実行可能）
+  generate-images:
+    if: ${{ inputs.enable_image_generation }}
+    needs: [initialize-and-analyze, structure-and-write]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install google-generativeai pillow
+
+      # Image generation using Imagen
+      - name: Generate Images with Imagen
+        run: |
+          python github-actions/scripts/generate_images_imagen.py \
+            --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
+            --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
+          retention-days: 30
+
+  # ジョブ8: 最終調整とアップロード
+  finalize-and-upload:
+    needs: [initialize-and-analyze, factcheck, seo-optimization, generate-images]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize-and-analyze.outputs.article_id }}'
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          merge-multiple: true
+
+      # Phase 7: Final Adjustment
+      - name: Phase 7 - Final Adjustment
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/07_final.md
+          allowed_tools: "View,Edit,Write"
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+          max_tokens: 4096
+
+      - name: Setup Python for upload
+        if: ${{ inputs.auto_publish && success() }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install upload dependencies
+        if: ${{ inputs.auto_publish && success() }}
+        run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+      # Upload to Google Drive
+      - name: Upload to Google Drive
+        if: ${{ inputs.auto_publish && success() }}
+        run: |
+          python github-actions/scripts/upload_to_drive.py \
+            --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
+            --drive-folder-id ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        env:
+          GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+
+      # Generate final report
+      - name: Generate Final Report
+        run: |
+          cat > output/${{ needs.initialize-and-analyze.outputs.article_id }}/final_report.json << EOF
+          {
+            "article_id": "${{ needs.initialize-and-analyze.outputs.article_id }}",
+            "topic": "${{ inputs.topic }}",
+            "status": "${{ job.status }}",
+            "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "phases_completed": {
+              "analysis": true,
+              "research": true,
+              "structure": true,
+              "writing": true,
+              "factcheck": ${{ needs.factcheck.result == 'success' }},
+              "seo": ${{ needs.seo-optimization.result == 'success' }},
+              "images": ${{ needs.generate-images.result == 'success' }}
+            }
+          }
+          EOF
+
+      - name: Upload final artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          retention-days: 30
+
+      # Send notification
+      - name: Send Slack Notification
+        if: ${{ env.SLACK_WEBHOOK != '' }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ job.status }}"
+          COLOR="good"
+          if [ "$STATUS" != "success" ]; then COLOR="danger"; fi
+          
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-type: application/json' \
+            -d '{
+              "attachments": [{
+                "color": "'$COLOR'",
+                "title": "Article Generation Complete",
+                "fields": [
+                  {"title": "Topic", "value": "${{ inputs.topic }}", "short": true},
+                  {"title": "Status", "value": "'$STATUS'", "short": true},
+                  {"title": "Article ID", "value": "${{ needs.initialize-and-analyze.outputs.article_id }}", "short": false}
+                ]
+              }]
+            }'
