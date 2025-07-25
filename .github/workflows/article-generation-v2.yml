@@ -467,7 +467,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: pip install google-generativeai pillow httpx aiohttp
+        run: |
+          cd github-actions
+          pip install -r requirements.txt
 
       # Image generation using Imagen
       - name: Generate Images with Imagen
