@@ -30,7 +30,17 @@ class ImagenGenerator:
         self.project_id = project_id
         self.location = location
         vertexai.init(project=project_id, location=location)
-        self.model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+        # Try different model names
+        try:
+            # First try the newer model name
+            self.model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
+        except Exception as e:
+            print(f"Failed to load imagen-3.0-generate-001, trying imagegeneration@006: {e}")
+            try:
+                self.model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+            except Exception as e2:
+                print(f"Failed to load imagegeneration@006, trying imagegeneration@005: {e2}")
+                self.model = ImageGenerationModel.from_pretrained("imagegeneration@005")
         
     async def generate_async(
         self,
@@ -294,6 +304,21 @@ def main():
             raise ValueError("GOOGLE_CLOUD_PROJECT or GCP_PROJECT environment variable is required")
         
         location = os.environ.get("VERTEX_AI_LOCATION", "us-central1")
+        
+        # Debug: Print authentication info
+        logger.info(f"Using project: {project_id}")
+        logger.info(f"Using location: {location}")
+        
+        # Check if credentials file exists
+        creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if creds_path and os.path.exists(creds_path):
+            logger.info(f"Using credentials file: {creds_path}")
+            with open(creds_path, 'r') as f:
+                import json
+                creds_data = json.load(f)
+                logger.info(f"Service account: {creds_data.get('client_email', 'Unknown')}")
+        else:
+            logger.warning("No GOOGLE_APPLICATION_CREDENTIALS found")
         
         # Read input files from article directory
         article_dir = Path(args.article_dir)

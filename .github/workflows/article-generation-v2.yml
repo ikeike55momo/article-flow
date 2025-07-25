@@ -471,6 +471,12 @@ jobs:
           cd github-actions
           pip install -r requirements.txt
 
+      # Setup Google Cloud SDK
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: 'latest'
+
       # Setup Google Cloud authentication for Vertex AI
       - name: Setup Google Cloud credentials
         run: |
@@ -498,6 +504,18 @@ jobs:
         env:
           GOOGLE_CLOUD_SA_KEY: ${{ secrets.GOOGLE_CLOUD_SA_KEY }}
 
+      # Debug authentication
+      - name: Debug Google Cloud authentication
+        run: |
+          echo "Checking authentication..."
+          gcloud auth list
+          echo "Current project:"
+          gcloud config get-value project
+          echo "Testing Vertex AI access:"
+          gcloud ai models list --region=us-central1 || echo "Failed to list models"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
+          
       # Image generation using Vertex AI Imagen
       - name: Generate Images with Vertex AI Imagen
         run: |
