@@ -23,7 +23,7 @@ from utils.file_utils import read_json, write_json, ensure_dir
 
 
 class DallEGenerator:
-    """OpenAI DALL-E 3 image generator"""
+    """OpenAI gpt-image-1 image generator (latest model)"""
     
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -33,22 +33,22 @@ class DallEGenerator:
         self,
         prompt: str,
         size: str = "1024x1024",
-        quality: str = "standard"
+        quality: str = "medium"
     ) -> Dict[str, Any]:
-        """Generate image using DALL-E 3 API"""
+        """Generate image using gpt-image-1 API"""
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
-        # DALL-E 3 parameters
+        # gpt-image-1 parameters (released April 2025)
         data = {
-            "model": "dall-e-3",
+            "model": "gpt-image-1",  # Latest multimodal model
             "prompt": prompt,
-            "n": 1,  # DALL-E 3 only supports n=1
-            "size": size,  # Options: "1024x1024", "1792x1024", "1024x1792"
-            "quality": quality,  # Options: "standard" or "hd"
+            "n": 1,  # Supports 1-10 images
+            "size": size,  # Options: "1024x1024", "1024x1536", "1536x1024", "auto"
+            "quality": quality,  # Options: "low", "medium", "high", "auto"
             "response_format": "b64_json"  # Get base64 encoded image
         }
         
@@ -68,7 +68,7 @@ class DallEGenerator:
                 
                 return {
                     "image_data": image_data,
-                    "generator": "dall-e-3",
+                    "generator": "gpt-image-1",
                     "prompt": prompt,
                     "revised_prompt": revised_prompt,
                     "size": size,

@@ -22,7 +22,8 @@
       "Bash(git merge:*)",
       "Bash(git rm:*)",
       "WebFetch(domain:cloud.google.com)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:platform.openai.com)"
     ],
     "deny": []
   }
