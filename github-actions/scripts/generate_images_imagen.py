@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Image Generation using placeholder images - Imagen API is not publicly available yet"""
+"""Image Generation using Google Vertex AI Imagen API"""
 
 import argparse
 import sys
 import os
 import json
 import time
-import base64
-import httpx
 import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
-from PIL import Image, ImageDraw
+from PIL import Image
 import io
+import vertexai
+from vertexai.preview.vision_models import ImageGenerationModel
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -24,102 +24,70 @@ from utils.file_utils import read_json, write_json, ensure_dir
 
 
 class ImagenGenerator:
-    """Google AI image generator using Gemini with image generation prompt"""
+    """Google Vertex AI Imagen image generator"""
     
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+    def __init__(self, project_id: str, location: str = "us-central1"):
+        self.project_id = project_id
+        self.location = location
+        vertexai.init(project=project_id, location=location)
+        self.model = ImageGenerationModel.from_pretrained("imagegeneration@006")
         
     async def generate_async(
         self,
         prompt: str,
-        aspect_ratio: str = "16:9",
+        aspect_ratio: str = "1:1",
         num_images: int = 1
     ) -> Dict[str, Any]:
-        """Generate placeholder image with text description"""
+        """Generate image using Google Vertex AI Imagen API"""
         
-        # Parse aspect ratio to get dimensions
-        width, height = self._get_dimensions_from_ratio(aspect_ratio)
-        
-        # Create a placeholder image with PIL
-        img = Image.new('RGB', (width, height), color='#f0f0f0')
-        draw = ImageDraw.Draw(img)
-        
-        # Add text to indicate this is a placeholder
-        text = "Placeholder Image"
-        subtitle = f"Aspect Ratio: {aspect_ratio}"
-        
-        # Calculate text position (centered)
         try:
-            # Try to use a default font
-            from PIL import ImageFont
-            font = ImageFont.load_default()
-        except:
-            font = None
+            # Generate image using Vertex AI
+            response = self.model.generate_images(
+                prompt=prompt,
+                number_of_images=num_images,
+                aspect_ratio=aspect_ratio,
+                safety_filter_level="block_some",
+                person_generation="allow_adult"
+            )
             
-        # Draw text
-        text_bbox = draw.textbbox((0, 0), text, font=font) if hasattr(draw, 'textbbox') else (0, 0, 200, 30)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
-        
-        x = (width - text_width) // 2
-        y = (height - text_height) // 2 - 20
-        
-        draw.text((x, y), text, fill='#666666', font=font)
-        draw.text((x, y + 30), subtitle, fill='#999999', font=font)
-        
-        # Add border
-        draw.rectangle([(0, 0), (width-1, height-1)], outline='#cccccc', width=2)
-        
-        # Convert to bytes
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='PNG')
-        img_byte_arr = img_byte_arr.getvalue()
-        
-        return {
-            "image_data": img_byte_arr,
-            "generator": "placeholder",
-            "prompt": prompt,
-            "note": "This is a placeholder image. Imagen API is not publicly available yet."
-        }
+            if response.images:
+                # Get the first generated image
+                image = response.images[0]
+                image_bytes = image._image_bytes
+                
+                return {
+                    "image_data": image_bytes,
+                    "generator": "imagen-vertex-ai",
+                    "prompt": prompt,
+                    "aspect_ratio": aspect_ratio
+                }
+            else:
+                raise Exception("No images returned from Vertex AI")
+                
+        except Exception as e:
+            raise Exception(f"Vertex AI Imagen generation failed: {str(e)}")
     
-    def generate(self, prompt: str, aspect_ratio: str = "16:9") -> Dict[str, Any]:
+    def generate(self, prompt: str, aspect_ratio: str = "1:1") -> Dict[str, Any]:
         """Synchronous wrapper for generate_async"""
         return asyncio.run(self.generate_async(prompt, aspect_ratio))
     
-    def _parse_aspect_ratio(self, ratio_str: str) -> str:
-        """Parse aspect ratio string to standard format"""
-        if "x" in ratio_str:
-            # Handle "1200x630" format
-            width, height = map(int, ratio_str.split('x'))
-            # Convert to aspect ratio
-            gcd = self._gcd(width, height)
-            return f"{width//gcd}:{height//gcd}"
-        else:
-            # Already in "16:9" format
-            return ratio_str
-    
-    def _get_dimensions_from_ratio(self, ratio_str: str) -> tuple:
-        """Get pixel dimensions from aspect ratio"""
-        base_width = 1200  # Base width for all images
+    def _get_supported_aspect_ratio(self, ratio_str: str) -> str:
+        """Convert aspect ratio to Vertex AI supported format"""
+        # Vertex AI supports: 1:1, 9:16, 16:9, 4:3, 3:4
+        supported_ratios = ["1:1", "9:16", "16:9", "4:3", "3:4"]
         
-        if ":" in ratio_str:
-            # Parse "16:9" format
-            width_ratio, height_ratio = map(int, ratio_str.split(':'))
-            height = int(base_width * height_ratio / width_ratio)
-            return base_width, height
-        elif "x" in ratio_str:
-            # Parse "1200x630" format
-            return tuple(map(int, ratio_str.split('x')))
-        else:
-            # Default to 16:9
-            return base_width, 675
-    
-    def _gcd(self, a: int, b: int) -> int:
-        """Calculate greatest common divisor"""
-        while b:
-            a, b = b, a % b
-        return a
+        if ratio_str in supported_ratios:
+            return ratio_str
+        
+        # Map common formats to supported ones
+        ratio_mapping = {
+            "square": "1:1",
+            "portrait": "9:16",
+            "landscape": "16:9",
+            "wide": "16:9"
+        }
+        
+        return ratio_mapping.get(ratio_str, "1:1")  # Default to square
 
 
 def parse_arguments():
@@ -156,7 +124,7 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
     prompts.append({
         "type": "hero",
         "prompt": hero_prompt.strip(),
-        "aspect_ratio": "16:9",  # Better for hero images
+        "aspect_ratio": "16:9",
         "filename": "hero.png"
     })
     
@@ -174,7 +142,7 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
         prompts.append({
             "type": f"section_{i}",
             "prompt": section_prompt.strip(),
-            "aspect_ratio": "4:3",  # Better for content images
+            "aspect_ratio": "4:3",
             "filename": f"section-{i}.png"
         })
     
@@ -190,12 +158,13 @@ def generate_single_image(
     """Generate a single image"""
     
     try:
-        logger.info(f"Generating placeholder for {prompt_data['type']} image...")
+        logger.info(f"Generating {prompt_data['type']} image with Vertex AI Imagen...")
         
         # Generate image
+        supported_ratio = generator._get_supported_aspect_ratio(prompt_data["aspect_ratio"])
         result = generator.generate(
             prompt=prompt_data["prompt"],
-            aspect_ratio=prompt_data["aspect_ratio"]
+            aspect_ratio=supported_ratio
         )
         
         # Save image
@@ -214,11 +183,11 @@ def generate_single_image(
             "aspect_ratio": prompt_data["aspect_ratio"],
             "alt_text": prompt_data.get("alt_text", ""),
             "prompt": prompt_data["prompt"],
-            "generator": result.get("generator", "placeholder"),
+            "generator": result.get("generator", "imagen-vertex-ai"),
             "created_at": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Successfully generated placeholder for {prompt_data['type']} image")
+        logger.info(f"Successfully generated {prompt_data['type']} image")
         return metadata
         
     except Exception as e:
@@ -268,10 +237,11 @@ async def generate_images_parallel_async(
     for prompt in prompts:
         async def generate_and_save(p):
             try:
-                logger.info(f"Generating placeholder for {p['type']} image...")
+                logger.info(f"Generating {p['type']} image with Vertex AI Imagen...")
+                supported_ratio = generator._get_supported_aspect_ratio(p["aspect_ratio"])
                 result = await generator.generate_async(
                     prompt=p["prompt"],
-                    aspect_ratio=p["aspect_ratio"]
+                    aspect_ratio=supported_ratio
                 )
                 
                 # Save image
@@ -291,7 +261,7 @@ async def generate_images_parallel_async(
                     "aspect_ratio": p["aspect_ratio"],
                     "alt_text": p.get("alt_text", ""),
                     "prompt": p["prompt"],
-                    "generator": "placeholder",
+                    "generator": "imagen-vertex-ai",
                     "created_at": datetime.utcnow().isoformat()
                 }
             except Exception as e:
@@ -314,14 +284,16 @@ def main():
     args = parse_arguments()
     
     # Setup logging
-    logger = setup_logging("image_generation_placeholder", args.log_level)
-    log_phase_start(logger, "Image Generation (Placeholder)")
+    logger = setup_logging("image_generation_imagen", args.log_level)
+    log_phase_start(logger, "Image Generation (Vertex AI Imagen)")
     
     try:
-        # Check API key
-        google_ai_key = os.environ.get("GOOGLE_AI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not google_ai_key:
-            raise ValueError("GOOGLE_AI_API_KEY or GEMINI_API_KEY not found in environment")
+        # Check required environment variables
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        if not project_id:
+            raise ValueError("GOOGLE_CLOUD_PROJECT or GCP_PROJECT environment variable is required")
+        
+        location = os.environ.get("VERTEX_AI_LOCATION", "us-central1")
         
         # Read input files from article directory
         article_dir = Path(args.article_dir)
@@ -373,7 +345,7 @@ def main():
         logger.info(f"Created {len(prompts)} image prompts")
         
         # Initialize generator
-        generator = ImagenGenerator(google_ai_key)
+        generator = ImagenGenerator(project_id, location)
         
         # Generate images
         start_time = time.time()
@@ -412,7 +384,7 @@ def main():
                 "total_requested": len(prompts),
                 "successful": successful,
                 "failed": failed,
-                "generator": "placeholder",
+                "generator": "imagen-vertex-ai",
                 "execution_time": elapsed_time
             },
             "created_at": datetime.utcnow().isoformat()
@@ -430,11 +402,11 @@ def main():
         
         logger.info(f"Image generation completed: {successful}/{len(prompts)} images")
         
-        log_phase_end(logger, "Image Generation (Placeholder)", success=True)
+        log_phase_end(logger, "Image Generation (Vertex AI Imagen)", success=True)
         
     except Exception as e:
-        log_error(logger, e, "Image Generation (Placeholder)")
-        log_phase_end(logger, "Image Generation (Placeholder)", success=False)
+        log_error(logger, e, "Image Generation (Vertex AI Imagen)")
+        log_phase_end(logger, "Image Generation (Vertex AI Imagen)", success=False)
         sys.exit(1)
 
 

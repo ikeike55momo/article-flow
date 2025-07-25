@@ -471,14 +471,21 @@ jobs:
           cd github-actions
           pip install -r requirements.txt
 
-      # Image generation using Imagen
-      - name: Generate Images with Imagen
+      # Setup Google Cloud authentication for Vertex AI
+      - name: Setup Google Cloud credentials
+        run: |
+          echo '${{ secrets.GOOGLE_CLOUD_SA_KEY }}' | base64 -d > /tmp/gcp-key.json
+
+      # Image generation using Vertex AI Imagen
+      - name: Generate Images with Vertex AI Imagen
         run: |
           python github-actions/scripts/generate_images_imagen.py \
             --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
             --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          VERTEX_AI_LOCATION: us-central1
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
 
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
