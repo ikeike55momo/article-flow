@@ -525,7 +525,7 @@ jobs:
         env:
           GOOGLE_CLOUD_PROJECT: article-flow-imagen
           GCP_PROJECT: article-flow-imagen
-          VERTEX_AI_LOCATION: us-central1
+          VERTEX_AI_LOCATION: us-east1
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
 
       - name: Upload image artifacts
