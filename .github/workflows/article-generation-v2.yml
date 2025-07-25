@@ -109,8 +109,7 @@ jobs:
             - 信頼性の高い情報源を想定したクエリ
             - 最新情報、統計、専門家意見を含む
           allowed_tools: "View"
-          max_tokens: 2048
-          temperature: 0.7
+          max_turns: "3"
 
       - name: Save analysis results
         run: |
@@ -289,7 +288,7 @@ jobs:
             TOPIC=${{ inputs.topic }}
             TARGET_AUDIENCE=${{ inputs.target_audience }}
             WORD_COUNT=${{ inputs.word_count }}
-          max_tokens: 4096
+          max_turns: "5"
 
       # Phase 4: Writing
       - name: Phase 4 - Writing
@@ -303,7 +302,7 @@ jobs:
             ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
             TOPIC=${{ inputs.topic }}
             WORD_COUNT=${{ inputs.word_count }}
-          max_tokens: 8192
+          max_turns: "10"
 
       - name: Upload writing artifacts
         uses: actions/upload-artifact@v4
@@ -338,7 +337,7 @@ jobs:
           allowed_tools: "View,Edit"
           claude_env: |
             ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
-          max_tokens: 4096
+          max_turns: "5"
 
       - name: Upload factcheck artifacts
         uses: actions/upload-artifact@v4
@@ -373,7 +372,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
             MAIN_KEYWORD=${{ needs.initialize-and-analyze.outputs.main_keyword }}
-          max_tokens: 8192
+          max_turns: "8"
 
       - name: Upload SEO artifacts
         uses: actions/upload-artifact@v4
@@ -451,7 +450,7 @@ jobs:
           allowed_tools: "View,Edit,Write"
           claude_env: |
             ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
-          max_tokens: 4096
+          max_turns: "5"
 
       - name: Setup Python for upload
         if: ${{ inputs.auto_publish && success() }}
