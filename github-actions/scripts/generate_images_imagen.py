@@ -30,17 +30,29 @@ class ImagenGenerator:
         self.project_id = project_id
         self.location = location
         vertexai.init(project=project_id, location=location)
-        # Try different model names
-        try:
-            # First try the newer model name
-            self.model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
-        except Exception as e:
-            print(f"Failed to load imagen-3.0-generate-001, trying imagegeneration@006: {e}")
+        # Try different model names in order of preference
+        model_attempts = [
+            "imagen-3.0-fast-generate-001",  # Latest fast model (recommended)
+            "imagen-3.0-generate-001",       # Standard model (deprecating Feb 2025)
+            "imagegeneration@006",           # Legacy fallback
+            "imagegeneration@005"            # Older legacy fallback
+        ]
+        
+        self.model = None
+        for model_name in model_attempts:
             try:
-                self.model = ImageGenerationModel.from_pretrained("imagegeneration@006")
-            except Exception as e2:
-                print(f"Failed to load imagegeneration@006, trying imagegeneration@005: {e2}")
-                self.model = ImageGenerationModel.from_pretrained("imagegeneration@005")
+                self.model = ImageGenerationModel.from_pretrained(model_name)
+                logger.info(f"Successfully loaded Imagen model: {model_name}")
+                self.model_name = model_name
+                break
+            except Exception as e:
+                logger.warning(f"Failed to load {model_name}: {str(e)}")
+                if model_name == model_attempts[-1]:
+                    raise Exception(
+                        f"All Imagen model loading attempts failed. "
+                        f"This usually means your project needs to be allowlisted for Imagen access. "
+                        f"Please apply at: https://cloud.google.com/vertex-ai/docs/generative-ai/image/overview"
+                    )
         
     async def generate_async(
         self,
