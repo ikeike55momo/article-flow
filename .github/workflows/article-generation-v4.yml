@@ -892,13 +892,29 @@ jobs:
           ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           FINAL_DIR="final_package"
           
+          # デバッグ: 利用可能なファイルを表示
+          echo "🔍 Available files in article directory:"
+          ls -la $ARTICLE_DIR/
+          
           # 最終パッケージ用のディレクトリを作成
           mkdir -p $FINAL_DIR
           
           # V4の4つの成果物をわかりやすい名前でコピー
-          # 1. メイン記事 (Markdown)
+          # 1. メイン記事 (Markdown) - 複数の可能性をチェック
           if [ -f "$ARTICLE_DIR/final_article.md" ]; then
             cp "$ARTICLE_DIR/final_article.md" "$FINAL_DIR/article.md"
+            echo "✅ Copied final_article.md"
+          elif [ -f "$ARTICLE_DIR/04_draft_article.md" ]; then
+            cp "$ARTICLE_DIR/04_draft_article.md" "$FINAL_DIR/article.md"
+            echo "✅ Copied 04_draft_article.md"
+          elif [ -f "$ARTICLE_DIR/article.md" ]; then
+            cp "$ARTICLE_DIR/article.md" "$FINAL_DIR/article.md"
+            echo "✅ Copied article.md"
+          else
+            echo "❌ No article file found!"
+            # すべてのmdファイルを表示
+            echo "Available .md files:"
+            find $ARTICLE_DIR -name "*.md" -type f
           fi
           
           # 2. リサーチ結果
