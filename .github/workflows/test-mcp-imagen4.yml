@@ -82,7 +82,6 @@ jobs:
             mcp__gemini-imagen__generate_image,
             mcp__gemini-imagen__list_models
           
-          working_directory: .
           max_turns: "10"
           
       - name: Check test results

@@ -467,7 +467,25 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: prompts/08_image_generation_mcp.md
+          prompt: |
+            記事の画像を生成してください。
+            
+            記事ディレクトリ: .
+            
+            タスク:
+            1. 02_article_structure.md を読み込んで記事構造を理解
+            2. 04_optimized_draft.html を読み込んで記事内容を把握
+            3. 以下の画像を生成:
+               - ヒーロー画像（16:9）: 記事全体のテーマを表現
+               - 各主要セクション用画像（4:3）: 最大4枚
+            4. 各画像について:
+               - プロンプトを日本の健康・美容記事に最適化
+               - プロフェッショナルで信頼感のあるスタイル
+               - テキストやロゴを含まない
+            5. 生成した画像を images/ に保存
+            6. images/metadata.json を作成して画像情報を記録
+            
+            重要: 健康・美容分野の薬機法・景表法に配慮した適切な表現を使用
           
           # MCPサーバー設定 - Gemini API経由でImagen4アクセス
           mcp_config: |
@@ -498,9 +516,6 @@ jobs:
           # 環境変数
           claude_env: |
             ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
-          
-          # 作業ディレクトリ
-          working_directory: output/${{ needs.initialize-and-analyze.outputs.article_id }}
           
           # 最大実行回数
           max_turns: "15"
