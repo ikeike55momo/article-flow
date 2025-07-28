@@ -1,0 +1,132 @@
+name: Test MCP Imagen4 Debug
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-mcp-debug:
+    runs-on: ubuntu-latest
+    environment: GA
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Create test directory
+        run: |
+          mkdir -p test-output/images
+          echo "Test directory created" > test-output/test.txt
+        
+      - name: Debug Claude + MCP Setup
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            デバッグタスクを実行してください。
+            
+            1. MCPサーバーの状態を確認:
+               - 利用可能なツールをリスト
+               - mcp__gemini-imagen__list_models を実行してモデルリストを取得
+            
+            2. テスト画像生成:
+               - シンプルなプロンプト「青い空と白い雲」で画像を生成
+               - mcp__gemini-imagen__generate_image を使用
+            
+            3. 結果の記録:
+               - test-output/debug_log.txt にすべての実行結果を記録
+               - エラーが発生した場合は詳細なエラーメッセージを記録
+            
+            各ステップの実行結果を詳細に報告してください。
+          
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4",
+                    "--debug"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}",
+                    "DEBUG": "true"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            View,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          max_turns: "10"
+          
+      - name: Check debug results
+        if: always()
+        run: |
+          echo "=== Debug Results ==="
+          if [ -f "test-output/debug_log.txt" ]; then
+            echo "Debug log found:"
+            cat test-output/debug_log.txt
+          else
+            echo "No debug log found"
+          fi
+          
+          echo ""
+          echo "=== Directory contents ==="
+          ls -la test-output/ || echo "test-output directory not found"
+          
+          echo ""
+          echo "=== Environment check ==="
+          echo "GEMINI_API_KEY exists: ${{ secrets.GEMINI_API_KEY != '' }}"
+          
+      - name: Alternative test - Direct Gemini check
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "=== Testing Gemini API directly ==="
+          
+          # Test if Gemini API key works
+          curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}" \
+            -H "Content-Type: application/json" \
+            > gemini_test.json || echo "Gemini API test failed"
+          
+          if [ -f gemini_test.json ]; then
+            echo "Gemini API response:"
+            cat gemini_test.json | head -20
+          fi
+          
+      - name: Create detailed summary
+        if: always()
+        run: |
+          echo "## 🔍 MCP Imagen4 Debug Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Environment" >> $GITHUB_STEP_SUMMARY
+          echo "- GEMINI_API_KEY configured: ${{ secrets.GEMINI_API_KEY != '' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ANTHROPIC_API_KEY configured: ${{ secrets.ANTHROPIC_API_KEY != '' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "test-output/debug_log.txt" ]; then
+            echo "### Debug Log" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat test-output/debug_log.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ No debug log generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-mcp-imagen-${{ github.run_number }}
+          path: |
+            test-output/
+            gemini_test.json
+          retention-days: 7
