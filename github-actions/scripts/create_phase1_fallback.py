@@ -53,10 +53,14 @@ def main():
         "workflow_version": "3.0.0"
     }
     
-    with open('phase1_output.json', 'w') as f:
+    # 出力先のディレクトリを環境変数から取得、デフォルトは現在のディレクトリ
+    output_dir = os.environ.get('OUTPUT_DIR', '.')
+    output_path = os.path.join(output_dir, 'phase1_output.json')
+    
+    with open(output_path, 'w') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     
-    print(f"✅ Created fallback phase1_output.json for: {title}")
+    print(f"✅ Created fallback phase1_output.json at {output_path} for: {title}")
 
 if __name__ == "__main__":
     main()

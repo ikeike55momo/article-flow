@@ -135,14 +135,14 @@ jobs:
             - メタキーワード: ${{ inputs.meta_keywords }}
             
             タスク:
-            1. request_params.json を読み込んで理解
+            1. output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解
             2. 以下の分析を実行:
                - メインキーワードの特定
                - 関連キーワードの抽出（5-8個）
                - 検索意図の分析
                - リサーチクエリの生成（15-25個）
             
-            3. 分析結果をphase1_output.jsonファイルに保存してください
+            3. 分析結果を output/${{ needs.initialize.outputs.article_id }}/phase1_output.json ファイルに保存してください（絶対パス指定）
             
             重要：以下の形式でanalysisオブジェクトを含むJSONを作成してください：
             {
@@ -176,23 +176,38 @@ jobs:
       
       - name: Verify and prepare analysis results
         run: |
+          echo "🔍 Checking for analysis files..."
+          echo "Current working directory: $(pwd)"
+          echo "Files in root:"
+          ls -la
+          echo "Files in output directory:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          
           cd output/${{ needs.initialize.outputs.article_id }}
           if [ -f "phase1_output.json" ]; then
             echo "✅ Phase 1 analysis file found"
             cat phase1_output.json
           else
             echo "⚠️ Phase 1 analysis file not found, creating default"
-            # Create fallback analysis if Claude didn't create the file
-            TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            TITLE="${{ inputs.article_title }}"
-            PERSONA="${{ inputs.target_persona }}"
-            KEYWORDS="${{ inputs.meta_keywords }}"
-            
-            # 外部スクリプトを使用してJSONを作成
-            cd ../../github-actions
-            TITLE="${TITLE}" PERSONA="${PERSONA}" KEYWORDS="${KEYWORDS}" TIMESTAMP="${TIMESTAMP}" python3 scripts/create_phase1_fallback.py
-            cd ../output/${{ needs.initialize.outputs.article_id }}
+            # Check if file was created in root directory by mistake
+            if [ -f "../../phase1_output.json" ]; then
+              echo "📁 Found phase1_output.json in root, moving to correct location"
+              mv ../../phase1_output.json ./phase1_output.json
+            else
+              echo "🔧 Creating fallback analysis file"
+              # Create fallback analysis if Claude didn't create the file
+              TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+              TITLE="${{ inputs.article_title }}"
+              PERSONA="${{ inputs.target_persona }}"
+              KEYWORDS="${{ inputs.meta_keywords }}"
+              
+              # 外部スクリプトを使用してJSONを作成
+              TITLE="${TITLE}" PERSONA="${PERSONA}" KEYWORDS="${KEYWORDS}" TIMESTAMP="${TIMESTAMP}" OUTPUT_DIR="." python3 ../../github-actions/scripts/create_phase1_fallback.py
+            fi
           fi
+          
+          echo "📋 Final verification - files in current directory:"
+          ls -la
 
       - name: Split research queries into batches
         id: analyze
