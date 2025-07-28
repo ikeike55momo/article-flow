@@ -845,7 +845,7 @@ jobs:
       - name: Install dependencies for Drive upload
         if: ${{ inputs.enable_drive_upload }}
         run: |
-          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pyyaml
 
       - name: Upload to Google Drive
         if: ${{ inputs.enable_drive_upload }}
