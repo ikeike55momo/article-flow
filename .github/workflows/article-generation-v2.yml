@@ -442,7 +442,7 @@ jobs:
           path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ7: 画像生成（並列実行可能）
+  # ジョブ7: 画像生成（MCP + Imagen4経由）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
     needs: [initialize-and-analyze, structure-and-write]
@@ -461,87 +461,63 @@ jobs:
           path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
           merge-multiple: true
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # NEW: Use Claude Code with MCP for image generation
+      - name: Generate Images with Claude + MCP Imagen4
+        id: generate
+        uses: anthropics/claude-code-base-action@beta
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: prompts/08_image_generation_mcp.md
+          
+          # MCPサーバー設定 - Gemini API経由でImagen4アクセス
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          # 使用可能なツール
+          allowed_tools: |
+            View,
+            Write,
+            Edit,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          # 環境変数
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-analyze.outputs.article_id }}
+          
+          # 作業ディレクトリ
+          working_directory: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+          
+          # 最大実行回数
+          max_turns: "15"
 
-      - name: Install dependencies
+      # Verify images were generated
+      - name: Verify and list generated images
         run: |
-          cd github-actions
-          pip install -r requirements.txt
-
-      # Setup Google Cloud SDK
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          version: 'latest'
-
-      # Setup Google Cloud authentication for Vertex AI
-      - name: Setup Google Cloud credentials
-        run: |
-          # Create credentials file using Python to avoid shell escaping issues
-          python3 -c "
-          import base64
-          import os
-          import json
-          
-          # Get the base64 encoded secret
-          encoded_secret = os.environ['GOOGLE_CLOUD_SA_KEY']
-          
-          # Decode and write to file
-          decoded_json = base64.b64decode(encoded_secret).decode('utf-8')
-          
-          # Verify it's valid JSON
-          json.loads(decoded_json)
-          
-          # Write to file
-          with open('/tmp/gcp-key.json', 'w') as f:
-              f.write(decoded_json)
-          
-          print('Google Cloud credentials file created successfully')
-          "
-        env:
-          GOOGLE_CLOUD_SA_KEY: ${{ secrets.GOOGLE_CLOUD_SA_KEY }}
-
-      # Debug authentication
-      - name: Debug Google Cloud authentication
-        run: |
-          echo "Checking authentication..."
-          gcloud auth list
-          echo "Current project:"
-          gcloud config get-value project
-          echo "Testing Vertex AI access:"
-          gcloud ai models list --region=us-central1 || echo "Failed to list models"
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
-          
-      # Image generation - Try multiple providers
-      - name: Generate Images
-        run: |
-          # Try gpt-image-1 first (immediately available)
-          if [ -n "$OPENAI_API_KEY" ]; then
-            echo "Using OpenAI gpt-image-1 for image generation..."
-            python github-actions/scripts/generate_images_gpt.py \
-              --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
-              --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images \
-              --quality high
-          # Try Vertex AI Imagen (if allowlisted)
-          elif [ -f "/tmp/gcp-key.json" ]; then
-            echo "Attempting Vertex AI Imagen..."
-            python github-actions/scripts/generate_images_imagen.py \
-              --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
-              --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images || \
-            echo "Imagen failed (likely not allowlisted), falling back to placeholders..."
+          IMAGE_DIR="output/${{ needs.initialize-and-analyze.outputs.article_id }}/images"
+          if [ -d "$IMAGE_DIR" ] && [ "$(ls -A $IMAGE_DIR 2>/dev/null)" ]; then
+            echo "✅ Images generated successfully:"
+            ls -la $IMAGE_DIR
+            echo "Image count: $(find $IMAGE_DIR -name "*.png" -o -name "*.jpg" -o -name "*.webp" | wc -l)"
           else
-            echo "No image generation API configured, using placeholders..."
+            echo "⚠️ No images generated, creating placeholder directory..."
+            mkdir -p $IMAGE_DIR
+            echo '{"error": "Image generation failed", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > $IMAGE_DIR/metadata.json
           fi
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_CLOUD_PROJECT: article-flow-imagen
-          GCP_PROJECT: article-flow-imagen
-          VERTEX_AI_LOCATION: us-east1
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
 
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4

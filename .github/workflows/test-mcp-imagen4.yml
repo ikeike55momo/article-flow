@@ -1,0 +1,127 @@
+name: Test MCP Imagen4 Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_prompt:
+        description: 'Test image prompt'
+        required: true
+        default: '健康的なライフスタイルを表現する明るく清潔な画像'
+      test_model:
+        description: 'Imagen model to use'
+        required: true
+        default: 'imagen-4'
+        type: choice
+        options:
+          - imagen-3
+          - imagen-4
+          - imagen-4-ultra
+
+jobs:
+  test-mcp-imagen:
+    runs-on: ubuntu-latest
+    environment: GA
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Create test directory
+        run: mkdir -p test-output/images
+        
+      - name: Test Claude + MCP Imagen
+        id: test-generate
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            MCPサーバーを使用してテスト画像を生成してください。
+            
+            タスク:
+            1. 利用可能なImagen モデルをリスト表示
+            2. 以下のプロンプトで画像を生成:
+               "${{ github.event.inputs.test_prompt }}"
+            3. モデル: ${{ github.event.inputs.test_model }}
+            4. アスペクト比: 16:9
+            5. 生成した画像を test-output/images/test_hero.png として保存
+            6. メタデータを test-output/images/metadata.json として保存
+            
+            メタデータ形式:
+            {
+              "test_run": true,
+              "model": "${{ github.event.inputs.test_model }}",
+              "prompt": "使用したプロンプト",
+              "timestamp": "生成時刻",
+              "success": true/false,
+              "error": "エラーメッセージ（あれば）"
+            }
+            
+            生成プロセスの詳細をステップバイステップで報告してください。
+          
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "${{ github.event.inputs.test_model }}"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            View,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          working_directory: .
+          max_turns: "10"
+          
+      - name: Check test results
+        run: |
+          echo "=== Test Results ==="
+          if [ -f "test-output/images/test_hero.png" ]; then
+            echo "✅ Image generated successfully!"
+            ls -la test-output/images/
+            if [ -f "test-output/images/metadata.json" ]; then
+              echo "=== Metadata ==="
+              cat test-output/images/metadata.json | jq '.' || cat test-output/images/metadata.json
+            fi
+          else
+            echo "❌ Image generation failed!"
+            echo "=== Directory contents ==="
+            ls -la test-output/images/ || echo "Directory not found"
+          fi
+          
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-mcp-imagen-${{ github.run_number }}
+          path: test-output/
+          retention-days: 7
+          
+      # Optional: Comment on workflow run with results
+      - name: Create summary
+        if: always()
+        run: |
+          if [ -f "test-output/images/test_hero.png" ]; then
+            echo "## ✅ MCP Imagen4 Test Success!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Model**: ${{ github.event.inputs.test_model }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Prompt**: ${{ github.event.inputs.test_prompt }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Image was generated successfully. Check artifacts for the generated image." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ MCP Imagen4 Test Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Image generation failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
