@@ -1,0 +1,448 @@
+name: Article Generation V3 (MCP + Imagen4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      article_title:
+        description: '記事タイトル'
+        required: true
+        type: string
+        default: ''
+      
+      target_persona:
+        description: 'ターゲットペルソナ（例：30代女性、健康意識が高い、子育て中）'
+        required: true
+        type: string
+        default: ''
+      
+      meta_keywords:
+        description: 'メタキーワード（カンマ区切り）'
+        required: true
+        type: string
+        default: ''
+      
+      enable_image_generation:
+        description: '画像生成を有効にする'
+        required: false
+        type: boolean
+        default: true
+      
+      enable_drive_upload:
+        description: 'Google Driveへのアップロード'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ジョブ1: 初期化と記事構成の生成
+  initialize-and-structure:
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    outputs:
+      article_id: ${{ steps.init.outputs.article_id }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize article generation
+        id: init
+        run: |
+          # タイトルからIDを生成
+          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-50)
+          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_${CLEAN_TITLE}
+          echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
+          echo "Article ID: ${ARTICLE_ID}"
+          
+          # 出力ディレクトリ作成
+          mkdir -p output/${ARTICLE_ID}
+          
+          # 入力情報を保存
+          cat > output/${ARTICLE_ID}/input_params.json << EOF
+          {
+            "article_id": "${ARTICLE_ID}",
+            "title": "${{ inputs.article_title }}",
+            "target_persona": "${{ inputs.target_persona }}",
+            "meta_keywords": "${{ inputs.meta_keywords }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Generate article structure with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            健康・美容に関する記事の構成を作成してください。
+            
+            入力情報:
+            - 記事タイトル: ${{ inputs.article_title }}
+            - ターゲットペルソナ: ${{ inputs.target_persona }}
+            - メタキーワード: ${{ inputs.meta_keywords }}
+            
+            タスク:
+            1. input_params.json を読み込んで内容を理解
+            2. ペルソナに最適化された記事構成を作成
+            3. 以下のファイルを生成:
+               - 01_article_structure.md: 詳細な記事構成
+               - 02_content_plan.md: 各セクションの内容計画
+               - 03_seo_strategy.md: SEO戦略とキーワード配置計画
+            
+            要件:
+            - ペルソナの悩みや関心事に寄り添う構成
+            - メタキーワードを自然に組み込む
+            - 薬機法・景表法を考慮した表現計画
+            - 読みやすく価値のある記事構成
+          
+          allowed_tools: |
+            View,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ steps.init.outputs.article_id }}
+          
+          max_turns: "10"
+
+      - name: Upload structure artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: structure-${{ steps.init.outputs.article_id }}
+          path: output/${{ steps.init.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ2: 記事本文の生成
+  generate-content:
+    needs: initialize-and-structure
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download structure artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-${{ needs.initialize-and-structure.outputs.article_id }}
+          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+
+      - name: Generate article content with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事本文を生成してください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで理解:
+               - input_params.json: 入力パラメータ
+               - 01_article_structure.md: 記事構成
+               - 02_content_plan.md: 内容計画
+               - 03_seo_strategy.md: SEO戦略
+            
+            2. ペルソナに最適化された記事本文を生成:
+               - ペルソナの言葉遣いや関心事を反映
+               - 具体的で実践的な内容
+               - 読みやすい構成と自然な流れ
+            
+            3. 以下のファイルを生成:
+               - 04_draft_article.md: Markdown形式の記事本文
+               - 05_article.html: HTML形式の記事（適切なマークアップ）
+               - 06_meta_data.json: メタ情報（タイトル、説明、キーワード等）
+            
+            要件:
+            - 3000-5000文字程度
+            - ペルソナに響く言葉選び
+            - SEOを意識した見出し構成
+            - 薬機法・景表法準拠
+          
+          allowed_tools: |
+            View,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+          
+          max_turns: "15"
+
+      - name: Upload content artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-${{ needs.initialize-and-structure.outputs.article_id }}
+          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ3: 画像生成（MCP + Imagen4）
+  generate-images:
+    if: ${{ inputs.enable_image_generation }}
+    needs: [initialize-and-structure, generate-content]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
+          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Generate Images with Claude + MCP Imagen4
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事に最適な画像を生成してください。
+            
+            タスク:
+            1. 記事内容を理解:
+               - input_params.json でペルソナを確認
+               - 04_draft_article.md で記事内容を把握
+               - 01_article_structure.md で構成を理解
+            
+            2. ペルソナに響く画像を生成:
+               - ヒーロー画像（16:9）: 記事全体のイメージ
+               - セクション画像（4:3）: 主要セクション用（3-4枚）
+            
+            3. 画像生成の方針:
+               - ペルソナの年代・性別に合わせたビジュアル
+               - 清潔感と信頼感のあるデザイン
+               - 記事内容と調和したカラーパレット
+               - テキストやロゴは含まない
+            
+            4. MCPツールの使用:
+               - mcp__gemini-imagen__list_models でモデル確認
+               - mcp__gemini-imagen__generate_image で画像生成
+               - imagen-4 または imagen-4-ultra を使用
+            
+            5. メタデータ作成:
+               - images/metadata.json に生成情報を記録
+               - 各画像のプロンプトと用途を記載
+          
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            View,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+          
+          max_turns: "15"
+
+      - name: Process generated images
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize-and-structure.outputs.article_id }}"
+          IMAGE_DIR="${ARTICLE_DIR}/images"
+          
+          # MCPサーバーは imagen/ ディレクトリに保存する
+          if [ -d "imagen" ] && [ "$(ls -A imagen 2>/dev/null)" ]; then
+            echo "✅ Images found in imagen directory:"
+            ls -la imagen/
+            
+            # 画像を記事ディレクトリにコピー
+            mkdir -p $IMAGE_DIR
+            cp imagen/*.png $IMAGE_DIR/ 2>/dev/null || true
+            cp imagen/*.jpg $IMAGE_DIR/ 2>/dev/null || true
+            
+            # リネーム（オプション）
+            cd $IMAGE_DIR
+            i=1
+            for img in *.png *.jpg; do
+              if [ -f "$img" ]; then
+                if [ $i -eq 1 ]; then
+                  mv "$img" "hero_image.png" 2>/dev/null || true
+                else
+                  mv "$img" "section_$((i-1))_image.png" 2>/dev/null || true
+                fi
+                i=$((i+1))
+              fi
+            done
+            cd -
+            
+            echo "Final images:"
+            ls -la $IMAGE_DIR
+          else
+            echo "⚠️ No images generated"
+          fi
+
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ needs.initialize-and-structure.outputs.article_id }}
+          path: |
+            output/${{ needs.initialize-and-structure.outputs.article_id }}/images
+            imagen/
+          retention-days: 30
+
+  # ジョブ4: 最終処理とアップロード
+  finalize:
+    needs: [initialize-and-structure, generate-content, generate-images]
+    if: always()
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
+          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Create final package with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事の最終パッケージを作成してください。
+            
+            タスク:
+            1. すべてのファイルを確認
+            2. final_article.html を作成:
+               - 記事本文（05_article.html）
+               - 画像の適切な配置
+               - メタ情報の統合
+            3. summary.md を作成:
+               - 生成された記事の概要
+               - ペルソナへの最適化ポイント
+               - SEO対策の実施内容
+               - 使用画像のリスト
+          
+          allowed_tools: |
+            View,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+          
+          max_turns: "10"
+
+      # Google Drive Upload (オプション)
+      - name: Setup Python for Drive upload
+        if: ${{ inputs.enable_drive_upload }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies for Drive upload
+        if: ${{ inputs.enable_drive_upload }}
+        run: |
+          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+      - name: Upload to Google Drive
+        if: ${{ inputs.enable_drive_upload }}
+        run: |
+          python github-actions/scripts/upload_to_drive.py \
+            --article-dir output/${{ needs.initialize-and-structure.outputs.article_id }} \
+            --drive-folder-id ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        env:
+          GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+
+      - name: Create workflow summary
+        if: always()
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize-and-structure.outputs.article_id }}"
+          
+          echo "## 📝 Article Generation V3 Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Input Parameters" >> $GITHUB_STEP_SUMMARY
+          echo "- **Title**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Persona**: ${{ inputs.target_persona }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Keywords**: ${{ inputs.meta_keywords }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "$ARTICLE_DIR/summary.md" ]; then
+            echo "### 📊 Generation Summary" >> $GITHUB_STEP_SUMMARY
+            cat "$ARTICLE_DIR/summary.md" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Generated Files" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find $ARTICLE_DIR -type f -name "*.md" -o -name "*.html" -o -name "*.json" | sort >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "$ARTICLE_DIR/images" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🖼️ Generated Images" >> $GITHUB_STEP_SUMMARY
+            echo "- Image count: $(find $ARTICLE_DIR/images -name "*.png" -o -name "*.jpg" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload final package
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-article-${{ needs.initialize-and-structure.outputs.article_id }}
+          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          retention-days: 30
+
+  # 通知（オプション）
+  notify:
+    needs: [initialize-and-structure, finalize]
+    if: always() && vars.SLACK_WEBHOOK != ''
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ needs.finalize.result }}"
+          COLOR="good"
+          EMOJI="✅"
+          
+          if [ "$STATUS" != "success" ]; then
+            COLOR="danger"
+            EMOJI="❌"
+          fi
+          
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-type: application/json' \
+            -d '{
+              "attachments": [{
+                "color": "'$COLOR'",
+                "title": "'$EMOJI' Article Generation V3 '$STATUS'",
+                "fields": [
+                  {"title": "Title", "value": "'"${{ inputs.article_title }}"'", "short": false},
+                  {"title": "Persona", "value": "'"${{ inputs.target_persona }}"'", "short": false},
+                  {"title": "Workflow", "value": "'"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'", "short": false}
+                ]
+              }]
+            }'
