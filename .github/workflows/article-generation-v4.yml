@@ -515,10 +515,12 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            記事本文をMarkdown形式で生成してください。（HTML出力は不要）
+            記事本文をMarkdown形式で生成してください。
+            
+            【重要】必ずWriteツールを使用してfinal_article.mdファイルを作成してください。
             
             タスク:
-            1. 以下のファイルを読み込んで理解:
+            1. 以下のファイルをReadツールで読み込んで理解:
                - input_params.json: 入力パラメータ
                - phase1_output.json: 分析結果
                - research_results.json: リサーチ結果
@@ -530,15 +532,17 @@ jobs:
                - 具体的で実践的な内容
                - 読みやすい構成と自然な流れ
             
-            3. 生成ファイル:
-               - final_article.md: Markdown形式の記事本文（これが最終成果物）
+            3. 【必須】Writeツールを使用して以下のファイルを作成:
+               - final_article.md: Markdown形式の記事本文
+               
+               ファイルパス: output/$ARTICLE_ID/final_article.md
             
             要件:
             - 3000-5000文字程度
             - ペルソナに響く言葉選び
             - 薬機法・景表法準拠
-            - 純粋なMarkdownフォーマット
-            - HTML要素は使用しない
+            - 純粋なMarkdownフォーマット（HTML要素は使用しない）
+            - ファイルは必ず作成し、内容を書き込むこと
           
           allowed_tools: |
             Read,
