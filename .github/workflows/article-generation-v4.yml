@@ -277,93 +277,7 @@ jobs:
           BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
           
           # バッチクエリを読み込んでGemini APIで直接検索（並列処理）
-          cat > research_batch_${{ matrix.batch }}.py << 'EOF'
-          import os
-          import sys
-          import json
-          import google.generativeai as genai
-          from datetime import datetime
-          
-          # Configure Gemini
-          genai.configure(api_key=os.environ['GEMINI_API_KEY'])
-          model = genai.GenerativeModel('gemini-2.0-flash-exp')
-          
-          # バッチクエリを読み込み
-          with open('research_batch_${{ matrix.batch }}.json', 'r') as f:
-              batch_data = json.load(f)
-          
-          queries = batch_data.get('queries', [])
-          results = []
-          
-          for i, query in enumerate(queries):
-              print(f"Searching batch ${{ matrix.batch }} ({i+1}/{len(queries)}): {query}")
-              
-              prompt = f"""
-              Web検索を実行: "{query}"
-              
-              優先順位：
-              1. 政府機関（.go.jp, .gov）
-              2. 学術機関（.ac.jp, .edu）  
-              3. 医学会・専門団体
-              4. 大手メディア
-              
-              以下の形式でJSONで返してください：
-              {{
-                "query": "{query}",
-                "results": [
-                  {{
-                    "url": "URL",
-                    "title": "タイトル", 
-                    "source_type": "government/academic/medical/industry/media",
-                    "reliability_score": 1-10,
-                    "key_findings": ["重要な発見"],
-                    "publication_date": "YYYY-MM-DD"
-                  }}
-                ]
-              }}
-              """
-              
-              try:
-                  response = model.generate_content(
-                      prompt,
-                      tools=['google_search'],
-                      generation_config=genai.GenerationConfig(
-                          temperature=1.0,
-                          max_output_tokens=2048
-                      )
-                  )
-                  
-                  text = response.text
-                  json_start = text.find('{')
-                  json_end = text.rfind('}') + 1
-                  if json_start >= 0 and json_end > json_start:
-                      result = json.loads(text[json_start:json_end])
-                      results.append(result)
-                  else:
-                      print(f"⚠️ No valid JSON in response for: {query}")
-                      
-              except Exception as e:
-                  print(f"❌ Error searching '{query}': {e}")
-          
-          # バッチ結果を保存
-          os.makedirs('batch_${{ matrix.batch }}', exist_ok=True)
-          output_data = {
-              'batch_id': ${{ matrix.batch }},
-              'results': results,
-              'sources': [r.get('results', [{}])[0].get('url', '') for r in results if r.get('results')],
-              'key_findings': [finding for r in results for result in r.get('results', []) for finding in result.get('key_findings', [])],
-              'timestamp': datetime.now().isoformat(),
-              'total_queries': len(queries),
-              'successful_queries': len(results)
-          }
-          
-          with open('batch_${{ matrix.batch }}/phase2_research.json', 'w') as f:
-              json.dump(output_data, f, ensure_ascii=False, indent=2)
-          
-          print(f"✅ Batch ${{ matrix.batch }} completed: {len(results)}/{len(queries)} successful")
-          EOF
-          
-          python3 research_batch_${{ matrix.batch }}.py
+          python3 ../../github-actions/scripts/research_batch_gemini.py ${{ matrix.batch }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -539,86 +453,11 @@ jobs:
             # Create directory if needed
             mkdir -p "$ARTICLE_DIR"
             
-            # Generate fallback article directly with bash
-            cat > "$ARTICLE_DIR/final_article.md" << 'EOF'
-# ${{ inputs.article_title }}
-
-${{ inputs.persona }}の皆さんにとって、爪の健康は日常生活における重要な関心事の一つです。この記事では、専門的な観点から実践的なケア方法について解説いたします。
-
-## 爪が薄い・割れやすい原因とは
-
-爪が薄くなったり割れやすくなったりする原因は、一般的に以下のような要因が考えられています。
-
-### 栄養不足による影響
-
-研究によると、タンパク質やビタミン、ミネラルの不足が爪の健康に大きく影響することが知られています。特に以下の栄養素が重要とされています：
-
-- **タンパク質**: 爪の主成分であるケラチンの生成に必要
-- **ビオチン**: 爪の強度向上に関連があるとされる
-- **鉄分**: 不足すると爪が薄くなる可能性がある
-- **亜鉛**: 細胞の新陳代謝に重要な役割を果たす
-
-### 外的要因の影響
-
-日常生活における外的要因も爪の状態に影響を与えるとされています：
-
-- 過度な水仕事や洗剤の使用
-- 頻繁なマニキュアの使用
-- 爪を道具として使用する習慣
-- 乾燥した環境での生活
-
-## 専門的なケア方法
-
-### 基本的なお手入れ
-
-専門家が推奨する基本的なケア方法をご紹介します：
-
-1. **適切な爪切り**
-   - 爪が湿っている状態で切ることが推奨されています
-   - 一度に大きく切らず、少しずつカットする
-   - やすりで形を整える
-
-2. **保湿ケア**
-   - ハンドクリームやキューティクルオイルの使用
-   - 就寝前の集中ケアが効果的とされる
-   - 手袋の着用による保護
-
-3. **栄養バランスの改善**
-   - バランスの取れた食事を心がける
-   - 必要に応じてサプリメントの検討
-   - 十分な水分摂取
-
-### 避けるべき習慣
-
-以下のような習慣は爪の健康に悪影響を与える可能性があります：
-
-- 爪を噛む習慣
-- 無理な甘皮処理
-- 過度なネイルアート
-- 不適切な除光液の使用
-
-## よくある質問
-
-### Q: どのくらいで効果が現れますか？
-
-A: 個人差がありますが、一般的に爪の成長サイクルは約6ヶ月とされています。適切なケアを継続することで、数週間から数ヶ月で変化を感じる方が多いようです。
-
-### Q: サプリメントは効果的ですか？
-
-A: 栄養不足が原因の場合、適切なサプリメントが有効な場合があります。ただし、医師や専門家に相談されることをお勧めします。
-
-### Q: 市販のケア用品の選び方は？
-
-A: 成分表を確認し、保湿成分が含まれているものを選ぶことが推奨されています。使用前にパッチテストを行うことも大切です。
-
-## まとめ
-
-爪の健康は日々のケアの積み重ねによって維持されるものです。今回ご紹介した方法を参考に、ご自身に合ったケア方法を見つけていただければと思います。
-
-症状が改善されない場合や、気になる変化がある場合は、専門医に相談されることをお勧めします。個人差があるため、無理をせず、継続的なケアを心がけましょう。
-
-*本記事の内容は一般的な情報提供を目的としており、個別の診断や治療に代わるものではありません。気になる症状がある場合は、医療専門家にご相談ください。*
-EOF
+            # Generate fallback article using external script
+            python3 ../../github-actions/scripts/generate_fallback_article.py \
+              --article-dir "$ARTICLE_DIR" \
+              --title "${{ inputs.article_title }}" \
+              --persona "${{ inputs.persona }}"
             
             echo "✅ Bash fallback article generated ($(wc -c < "$ARTICLE_DIR/final_article.md") bytes)"
             
@@ -1023,11 +862,9 @@ EOF
           if [ "$ARTICLE_FOUND" = false ]; then
             echo "❌ ERROR: No article file found in any location!"
             echo "Creating minimal article as last resort..."
-            cat > "$FINAL_DIR/article.md" << 'EOF'
-# 記事生成エラー
-記事ファイルが見つかりませんでした。
-ワークフローの実行ログを確認してください。
-EOF
+            echo "# 記事生成エラー" > "$FINAL_DIR/article.md"
+            echo "記事ファイルが見つかりませんでした。" >> "$FINAL_DIR/article.md"
+            echo "ワークフローの実行ログを確認してください。" >> "$FINAL_DIR/article.md"
           fi
           
           # 2. リサーチ結果 - 複数の場所から検索
@@ -1119,19 +956,18 @@ EOF
           find "$FINAL_DIR" -type f -exec ls -la {} \;
           
           # README作成
-          cat > $FINAL_DIR/README.md << EOF
-          # V4 記事生成完了パッケージ（制作向け簡易版）
-          
-          **記事タイトル**: ${{ inputs.article_title }}
-          **生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)
-          **記事ID**: ${{ needs.initialize.outputs.article_id }}
-          
-          ## 📁 V4成果物（4点）
-          
-          1. **article.md** - 記事本文（純粋なMarkdown、SEO構造化なし）
-          2. **research_results.json** - リサーチ結果（信頼性スコア付き）
-          3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）
-          4. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）
+          echo "# V4 記事生成完了パッケージ（制作向け簡易版）" > "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "**記事タイトル**: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
+          echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
+          echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 📁 V4成果物（4点）" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "1. **article.md** - 記事本文（純粋なMarkdown、SEO構造化なし）" >> "$FINAL_DIR/README.md"
+          echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
+          echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
+          echo "4. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）" >> "$FINAL_DIR/README.md"
           
           ## 🎯 ターゲット情報
           
