@@ -198,16 +198,18 @@ def create_folder_structure(
 ) -> Dict[str, str]:
     """Create folder structure in Google Drive"""
     
-    # Create main article folder
-    folder_name = f"{datetime.now().strftime('%Y-%m-%d')}_{article_id}"
-    main_folder_id = uploader.create_folder(folder_name, parent_folder_id)
+    # For service accounts, we need to use the shared folder directly
+    # instead of creating new folders (which requires storage quota)
     
-    # Create subfolders
+    # Use the shared folder ID directly for all uploads
     folders = {
-        "main": main_folder_id,
-        "images": uploader.create_folder("images", main_folder_id),
-        "reports": uploader.create_folder("reports", main_folder_id)
+        "main": parent_folder_id,      # Use shared folder directly
+        "images": parent_folder_id,    # Upload images to same folder
+        "reports": parent_folder_id    # Upload reports to same folder
     }
+    
+    # Note: All files will be uploaded to the same shared folder
+    # with appropriate naming to distinguish them
     
     return folders
 
