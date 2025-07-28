@@ -253,6 +253,12 @@ jobs:
           name: init-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
 
+      - name: Download analysis artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
