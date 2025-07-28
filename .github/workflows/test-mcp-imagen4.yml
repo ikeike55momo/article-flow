@@ -87,17 +87,27 @@ jobs:
       - name: Check test results
         run: |
           echo "=== Test Results ==="
-          if [ -f "test-output/images/test_hero.png" ]; then
+          # MCPサーバーは imagen/ ディレクトリに保存する
+          if [ -d "imagen" ] && [ "$(ls -A imagen 2>/dev/null)" ]; then
             echo "✅ Image generated successfully!"
-            ls -la test-output/images/
-            if [ -f "test-output/images/metadata.json" ]; then
-              echo "=== Metadata ==="
-              cat test-output/images/metadata.json | jq '.' || cat test-output/images/metadata.json
-            fi
+            echo "=== Generated images ==="
+            ls -la imagen/
+            echo "Image count: $(find imagen -name "*.png" -o -name "*.jpg" | wc -l)"
+            
+            # test-output にコピー
+            mkdir -p test-output/images
+            cp imagen/*.png test-output/images/ 2>/dev/null || true
+            cp imagen/*.jpg test-output/images/ 2>/dev/null || true
           else
-            echo "❌ Image generation failed!"
-            echo "=== Directory contents ==="
-            ls -la test-output/images/ || echo "Directory not found"
+            echo "❌ No images found in imagen directory"
+            echo "=== Current directory structure ==="
+            ls -la
+          fi
+          
+          # メタデータも確認
+          if [ -f "test-output/images/metadata.json" ]; then
+            echo "=== Metadata ==="
+            cat test-output/images/metadata.json | jq '.' || cat test-output/images/metadata.json
           fi
           
       - name: Upload test artifacts
@@ -105,7 +115,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-mcp-imagen-${{ github.run_number }}
-          path: test-output/
+          path: |
+            test-output/
+            imagen/
           retention-days: 7
           
       # Optional: Comment on workflow run with results

@@ -524,8 +524,23 @@ jobs:
       - name: Verify and list generated images
         run: |
           IMAGE_DIR="output/${{ needs.initialize-and-analyze.outputs.article_id }}/images"
-          if [ -d "$IMAGE_DIR" ] && [ "$(ls -A $IMAGE_DIR 2>/dev/null)" ]; then
-            echo "✅ Images generated successfully:"
+          
+          # MCPサーバーは imagen/ ディレクトリに画像を保存する
+          if [ -d "imagen" ] && [ "$(ls -A imagen 2>/dev/null)" ]; then
+            echo "✅ Images found in imagen directory:"
+            ls -la imagen/
+            
+            # 画像を正しいディレクトリにコピー
+            mkdir -p $IMAGE_DIR
+            cp imagen/*.png $IMAGE_DIR/ 2>/dev/null || true
+            cp imagen/*.jpg $IMAGE_DIR/ 2>/dev/null || true
+            cp imagen/*.webp $IMAGE_DIR/ 2>/dev/null || true
+            
+            echo "Copied to $IMAGE_DIR:"
+            ls -la $IMAGE_DIR
+            echo "Image count: $(find $IMAGE_DIR -name "*.png" -o -name "*.jpg" -o -name "*.webp" | wc -l)"
+          elif [ -d "$IMAGE_DIR" ] && [ "$(ls -A $IMAGE_DIR 2>/dev/null)" ]; then
+            echo "✅ Images already in correct directory:"
             ls -la $IMAGE_DIR
             echo "Image count: $(find $IMAGE_DIR -name "*.png" -o -name "*.jpg" -o -name "*.webp" | wc -l)"
           else
