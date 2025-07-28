@@ -2,6 +2,7 @@
 """Phase 1: Request Analysis - Parse and validate article generation request"""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -28,15 +29,29 @@ def analyze_request(params: dict, config: Config, claude: ClaudeAPI) -> dict:
     """Analyze and enhance the request parameters"""
     
     # Read the prompt template
-    prompt_template = read_prompt("00_parse_request")
+    # V3の場合は新しいプロンプトテンプレートを使用
+    if os.environ.get("ENABLE_GEMINI_RESEARCH") == "true":
+        prompt_template = read_prompt("00_parse_request_v3")
+    else:
+        prompt_template = read_prompt("00_parse_request")
     
     # Prepare the prompt
-    prompt = prompt_template.format(
-        topic=params["topic"],
-        store_url=params.get("store_url", "なし"),
-        target_audience=params.get("target_audience", "セルフケア志向の女性"),
-        word_count=params.get("word_count", "3200")
-    )
+    if os.environ.get("ENABLE_GEMINI_RESEARCH") == "true":
+        # V3: keywords パラメータを使用
+        prompt = prompt_template.format(
+            topic=params["topic"],
+            target_audience=params.get("target_audience", "セルフケア志向の女性"),
+            keywords=params.get("keywords", ""),
+            word_count=params.get("word_count", "3200")
+        )
+    else:
+        # V2: 既存のパラメータ
+        prompt = prompt_template.format(
+            topic=params["topic"],
+            store_url=params.get("store_url", "なし"),
+            target_audience=params.get("target_audience", "セルフケア志向の女性"),
+            word_count=params.get("word_count", "3200")
+        )
     
     # Get structured analysis from Claude
     analysis = claude.generate_with_structured_output(
