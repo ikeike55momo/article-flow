@@ -165,12 +165,15 @@ jobs:
           path: output/${{ steps.init.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ2: Web検索（Gemini API使用）
+  # ジョブ2: 並列Web検索（5バッチでGemini API使用）
   research:
     needs: initialize-and-analyze
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
+    strategy:
+      matrix:
+        batch: [0, 1, 2, 3, 4]
     
     steps:
       - name: Checkout repository
@@ -192,20 +195,12 @@ jobs:
         run: |
           pip install google-generativeai httpx
 
-      # Phase 2: Research using Gemini API directly
-      - name: Debug - Check phase1 output
-        run: |
-          echo "=== Checking phase1 output files ==="
-          ls -la output/${{ needs.initialize-and-analyze.outputs.article_id }}/ || echo "Directory not found"
-          echo "=== Content of phase1_analysis.json ==="
-          cat output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase1_analysis.json || echo "File not found"
-          echo "=== End of debug ==="
-
-      - name: Phase 2 - Research with Gemini
+      # Phase 2: Parallel research using Gemini API
+      - name: Phase 2 - Parallel Research with Gemini (Batch ${{ matrix.batch }})
         id: research
         run: |
-          # Create research script
-          cat > research_with_gemini.py << 'EOF'
+          # Create research script for batch processing
+          cat > research_batch_gemini.py << 'EOF'
           import os
           import sys
           import json
@@ -215,6 +210,10 @@ jobs:
           # Configure Gemini
           genai.configure(api_key=os.environ['GEMINI_API_KEY'])
           model = genai.GenerativeModel('gemini-2.0-flash-exp')
+
+          # Get batch parameters
+          batch_num = int(sys.argv[3])
+          total_batches = 5
 
           # Read analysis results with error handling
           try:
@@ -227,17 +226,41 @@ jobs:
                   "research_queries": [
                       "${{ inputs.topic }} とは",
                       "${{ inputs.topic }} 最新情報 2025",
-                      "${{ inputs.topic }} 効果",
-                      "${{ inputs.topic }} 方法",
-                      "${{ inputs.topic }} 注意点"
+                      "${{ inputs.topic }} 効果 研究結果",
+                      "${{ inputs.topic }} 方法 手順",
+                      "${{ inputs.topic }} 注意点 リスク",
+                      "${{ inputs.topic }} メリット デメリット",
+                      "${{ inputs.topic }} 専門家 意見",
+                      "${{ inputs.topic }} 統計データ",
+                      "${{ inputs.topic }} 初心者向け",
+                      "${{ inputs.topic }} よくある質問",
+                      "${{ inputs.topic }} 厚生労働省",
+                      "${{ inputs.topic }} 健康被害",
+                      "${{ inputs.topic }} 治療法",
+                      "${{ inputs.topic }} 予防法",
+                      "${{ inputs.topic }} 成功事例",
+                      "${{ inputs.topic }} 失敗事例",
+                      "${{ inputs.topic }} 副作用",
+                      "${{ inputs.topic }} 使用方法",
+                      "${{ inputs.topic }} 価格 費用",
+                      "${{ inputs.topic }} 比較 違い"
                   ]
               }
 
-          queries = analysis.get('research_queries', [])[:20]
+          all_queries = analysis.get('research_queries', [])
+          
+          # Calculate batch slice
+          queries_per_batch = len(all_queries) // total_batches + (1 if len(all_queries) % total_batches > 0 else 0)
+          start_idx = batch_num * queries_per_batch
+          end_idx = min(start_idx + queries_per_batch, len(all_queries))
+          batch_queries = all_queries[start_idx:end_idx]
+
+          print(f"Batch {batch_num}: Processing queries {start_idx}-{end_idx-1} ({len(batch_queries)} queries)")
+          
           results = []
 
-          for i, query in enumerate(queries):
-              print(f"Searching ({i+1}/{len(queries)}): {query}")
+          for i, query in enumerate(batch_queries):
+              print(f"Batch {batch_num} - Searching ({i+1}/{len(batch_queries)}): {query}")
               
               prompt = f"""
               Web検索を実行: "{query}"
@@ -267,9 +290,7 @@ jobs:
               try:
                   response = model.generate_content(
                       prompt,
-                      tools=[genai.protos.Tool(
-                          google_search=genai.protos.GoogleSearch()
-                      )],
+                      tools=['google_search'],
                       generation_config=genai.GenerationConfig(
                           temperature=1.0,
                           max_output_tokens=2048
@@ -288,9 +309,10 @@ jobs:
                   print(f"Error for query '{query}': {e}")
                   results.append({"query": query, "results": [], "error": str(e)})
 
-          # Save results
+          # Save batch results
           output = {
-              "research_queries": queries,
+              "batch_num": batch_num,
+              "queries_processed": batch_queries,
               "search_results": results,
               "completed_at": datetime.utcnow().isoformat(),
               "total_results": sum(len(r.get("results", [])) for r in results)
@@ -299,17 +321,107 @@ jobs:
           with open(sys.argv[2], 'w', encoding='utf-8') as f:
               json.dump(output, f, ensure_ascii=False, indent=2)
 
-          print(f"Research completed: {len([r for r in results if r.get('results')])} successful queries")
+          print(f"Batch {batch_num} completed: {len([r for r in results if r.get('results')])} successful queries")
           EOF
           
-          # Run research
-          python research_with_gemini.py \
+          # Run batch research
+          python research_batch_gemini.py \
             output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase1_analysis.json \
-            output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase2_research.json
+            output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase2_research_batch_${{ matrix.batch }}.json \
+            ${{ matrix.batch }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Upload research artifacts
+      - name: Upload batch research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-batch-${{ matrix.batch }}-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase2_research_batch_${{ matrix.batch }}.json
+          retention-days: 30
+
+  # ジョブ2.5: リサーチ結果統合
+  research-merge:
+    needs: [initialize-and-analyze, research]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all batch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2-batch-*-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: batch_results/
+          merge-multiple: true
+
+      - name: Download phase1 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase1-${{ needs.initialize-and-analyze.outputs.article_id }}
+          path: output/${{ needs.initialize-and-analyze.outputs.article_id }}
+
+      - name: Merge batch results
+        run: |
+          python3 << 'EOF'
+          import json
+          import glob
+          import os
+          from datetime import datetime
+          
+          # Find all batch result files
+          batch_files = glob.glob('batch_results/phase2_research_batch_*.json')
+          batch_files.sort()
+          
+          print(f"Found {len(batch_files)} batch files:")
+          for f in batch_files:
+              print(f"  - {f}")
+          
+          merged_results = []
+          total_queries = []
+          
+          for batch_file in batch_files:
+              try:
+                  with open(batch_file, 'r', encoding='utf-8') as f:
+                      batch_data = json.load(f)
+                  
+                  batch_num = batch_data.get('batch_num', 0)
+                  queries = batch_data.get('queries_processed', [])
+                  results = batch_data.get('search_results', [])
+                  
+                  print(f"Batch {batch_num}: {len(queries)} queries, {len(results)} results")
+                  
+                  total_queries.extend(queries)
+                  merged_results.extend(results)
+                  
+              except Exception as e:
+                  print(f"Error processing {batch_file}: {e}")
+          
+          # Create merged output
+          merged_output = {
+              "research_queries": total_queries,
+              "search_results": merged_results,
+              "completed_at": datetime.utcnow().isoformat(),
+              "total_results": sum(len(r.get("results", [])) for r in merged_results),
+              "batches_processed": len(batch_files)
+          }
+          
+          # Ensure output directory exists
+          os.makedirs('output/${{ needs.initialize-and-analyze.outputs.article_id }}', exist_ok=True)
+          
+          # Save merged results
+          with open('output/${{ needs.initialize-and-analyze.outputs.article_id }}/phase2_research.json', 'w', encoding='utf-8') as f:
+              json.dump(merged_output, f, ensure_ascii=False, indent=2)
+          
+          print(f"Merged research completed:")
+          print(f"  - Total queries: {len(total_queries)}")
+          print(f"  - Total results: {merged_output['total_results']}")
+          print(f"  - Batches processed: {len(batch_files)}")
+          EOF
+
+      - name: Upload merged research artifacts
         uses: actions/upload-artifact@v4
         with:
           name: phase2-${{ needs.initialize-and-analyze.outputs.article_id }}
@@ -318,7 +430,7 @@ jobs:
 
   # ジョブ3-4: 構成計画と執筆
   structure-and-write:
-    needs: [initialize-and-analyze, research]
+    needs: [initialize-and-analyze, research-merge]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 25
