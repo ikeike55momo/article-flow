@@ -265,162 +265,23 @@ jobs:
         run: |
           pip install google-generativeai httpx
 
-      - name: Research with Gemini (V2 Single Process Style)
+      - name: Research with Gemini (V4 Simple Style)
         run: |
           cd output/${{ needs.initialize.outputs.article_id }}
-          
-          # バッチ用の分析ファイルを作成
-          BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
-          
-          # バッチクエリを読み込んでGemini APIで直接検索（V2方式）
-          cat > research_batch_${{ matrix.batch }}.py << 'EOF'
-          import os
-          import sys
-          import json
-          import google.generativeai as genai
-          from datetime import datetime
-          
-          # Configure Gemini
-          genai.configure(api_key=os.environ['GEMINI_API_KEY'])
-          model = genai.GenerativeModel('gemini-2.0-flash-exp')
-          
-          # バッチクエリを読み込み
-          with open('research_batch_${{ matrix.batch }}.json', 'r') as f:
-              batch_data = json.load(f)
-          
-          queries = batch_data.get('queries', [])
-          results = []
-          
-          for i, query in enumerate(queries):
-              print(f"Searching batch ${{ matrix.batch }} ({i+1}/{len(queries)}): {query}")
-              
-              prompt = f"""
-              Web検索を実行: "{query}"
-              
-              優先順位：
-              1. 政府機関（.go.jp, .gov）
-              2. 学術機関（.ac.jp, .edu）  
-              3. 医学会・専門団体
-              4. 大手メディア
-              
-              以下の形式でJSONで返してください：
-              {{
-                "query": "{query}",
-                "results": [
-                  {{
-                    "url": "URL",
-                    "title": "タイトル", 
-                    "source_type": "government/academic/medical/industry/media",
-                    "reliability_score": 1-10,
-                    "key_findings": ["重要な発見"],
-                    "publication_date": "YYYY-MM-DD"
-                  }}
-                ]
-              }}
-              """
-              
-              try:
-                  response = model.generate_content(
-                      prompt,
-                      tools=[genai.protos.Tool(
-                          google_search=genai.protos.GoogleSearch()
-                      )],
-                      generation_config=genai.GenerationConfig(
-                          temperature=1.0,
-                          max_output_tokens=2048
-                      )
-                  )
-                  
-                  text = response.text
-                  json_start = text.find('{')
-                  json_end = text.rfind('}') + 1
-                  if json_start >= 0 and json_end > json_start:
-                      result = json.loads(text[json_start:json_end])
-                      results.append(result)
-                  else:
-                      print(f"⚠️ No valid JSON in response for: {query}")
-                      
-              except Exception as e:
-                  print(f"❌ Error searching '{query}': {e}")
-          
-          # バッチ結果を保存
-          os.makedirs('batch_${{ matrix.batch }}', exist_ok=True)
-          output_data = {
-              'batch_id': ${{ matrix.batch }},
-              'results': results,
-              'sources': [r.get('results', [{}])[0].get('url', '') for r in results if r.get('results')],
-              'key_findings': [finding for r in results for result in r.get('results', []) for finding in result.get('key_findings', [])],
-              'timestamp': datetime.now().isoformat(),
-              'total_queries': len(queries),
-              'successful_queries': len(results)
-          }
-          
-          with open('batch_${{ matrix.batch }}/phase2_research.json', 'w') as f:
-              json.dump(output_data, f, ensure_ascii=False, indent=2)
-          
-          print(f"✅ Batch ${{ matrix.batch }} completed: {len(results)}/{len(queries)} successful")
-          EOF
-          
-          python3 research_batch_${{ matrix.batch }}.py
+          python3 ../../github-actions/scripts/research_v4_simple.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Upload research batch artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: research-batch-${{ matrix.batch }}-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}
-          retention-days: 30
-
-  # ジョブ4: リサーチ結果の統合
-  research-merge:
-    needs: [initialize, research]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 10
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create output directory
-        run: mkdir -p output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Download all research batches
-        uses: actions/download-artifact@v4
-        with:
-          pattern: research-batch-*-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}/batches
-
-      - name: Download analysis artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: analysis-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Merge research results
-        run: |
-          cd output/${{ needs.initialize.outputs.article_id }}
-          
-          # リサーチ結果を統合してV4出力形式にする
-          python3 ../../github-actions/scripts/merge_research_results.py
-          
-          # V4用にファイル名を変更
-          if [ -f "phase2_research.json" ]; then
-            mv phase2_research.json research_results.json
-            echo "✅ Created research_results.json for V4"
-          fi
-
-      - name: Upload merged research artifacts
+      - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
           name: research-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/research_results.json
           retention-days: 30
 
-  # ジョブ5: 記事構成の生成（SEO削除版）
+  # ジョブ4: 記事構成の生成（SEO削除版）
   generate-structure:
-    needs: [initialize, analysis, research-merge]
+    needs: [initialize, analysis, research]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
@@ -866,7 +727,7 @@ EOF
 
   # ジョブ9: 最終処理（4つの成果物のみ）
   finalize:
-    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, generate-images]
+    needs: [initialize, analysis, research, generate-structure, generate-content, factcheck, generate-images]
     if: always()
     runs-on: ubuntu-latest
     environment: GA
