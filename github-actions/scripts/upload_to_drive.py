@@ -209,25 +209,19 @@ def create_folder_structure(
 ) -> Dict[str, str]:
     """Create folder structure in Google Drive"""
     
-    import time
+    # Due to service account limitations, we cannot create folders and upload to them
+    # Instead, we'll upload all files directly to the shared folder with prefixed names
     
-    # Create main article folder
-    folder_name = f"{datetime.now().strftime('%Y-%m-%d')}_{article_id}"
-    print(f"Creating main folder '{folder_name}' in parent folder ID: {parent_folder_id}")
-    main_folder_id = uploader.create_folder(folder_name, parent_folder_id)
-    print(f"Created main folder with ID: {main_folder_id}")
+    print(f"Using shared folder directly (ID: {parent_folder_id}) for article: {article_id}")
+    print("Note: All files will be prefixed with article ID and date for organization")
     
-    # Wait a bit for folder creation to propagate
-    time.sleep(2)
-    
-    # Create subfolders
-    print(f"Creating subfolders in main folder ID: {main_folder_id}")
+    # Return the same folder ID for all categories
+    # Files will be organized by naming convention instead of folders
     folders = {
-        "main": main_folder_id,
-        "images": uploader.create_folder("images", main_folder_id),
-        "reports": uploader.create_folder("reports", main_folder_id)
+        "main": parent_folder_id,
+        "images": parent_folder_id,
+        "reports": parent_folder_id
     }
-    print(f"Created folder structure: {folders}")
     
     return folders
 
@@ -236,7 +230,8 @@ def upload_article_files(
     uploader: GoogleDriveUploader,
     files: Dict[str, List[Path]],
     folders: Dict[str, str],
-    set_public: bool = False
+    set_public: bool = False,
+    article_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Upload all article files to appropriate folders"""
     
@@ -247,9 +242,17 @@ def upload_article_files(
         "metadata": []
     }
     
+    # Create date prefix for organization
+    date_prefix = datetime.now().strftime('%Y-%m-%d')
+    
     # Upload documents to main folder
     for doc_file in files["documents"]:
-        result = uploader.upload_file(doc_file, folders["main"])
+        # Add prefix to filename for organization
+        if article_id:
+            file_name = f"{date_prefix}_{article_id}_{doc_file.name}"
+        else:
+            file_name = doc_file.name
+        result = uploader.upload_file(doc_file, folders["main"], file_name=file_name)
         uploaded_files["documents"].append(result)
         
         if set_public:
@@ -257,7 +260,11 @@ def upload_article_files(
     
     # Upload images
     for img_file in files["images"]:
-        result = uploader.upload_file(img_file, folders["images"])
+        if article_id:
+            file_name = f"{date_prefix}_{article_id}_images_{img_file.name}"
+        else:
+            file_name = img_file.name
+        result = uploader.upload_file(img_file, folders["images"], file_name=file_name)
         uploaded_files["images"].append(result)
         
         if set_public:
@@ -265,12 +272,20 @@ def upload_article_files(
     
     # Upload reports
     for report_file in files["reports"]:
-        result = uploader.upload_file(report_file, folders["reports"])
+        if article_id:
+            file_name = f"{date_prefix}_{article_id}_reports_{report_file.name}"
+        else:
+            file_name = report_file.name
+        result = uploader.upload_file(report_file, folders["reports"], file_name=file_name)
         uploaded_files["reports"].append(result)
     
     # Upload metadata
     for meta_file in files["metadata"]:
-        result = uploader.upload_file(meta_file, folders["main"])
+        if article_id:
+            file_name = f"{date_prefix}_{article_id}_{meta_file.name}"
+        else:
+            file_name = meta_file.name
+        result = uploader.upload_file(meta_file, folders["main"], file_name=file_name)
         uploaded_files["metadata"].append(result)
     
     return uploaded_files
@@ -360,7 +375,8 @@ def main():
             uploader,
             files,
             folders,
-            args.public
+            args.public,
+            article_id=article_id
         )
         
         # Set folder permissions if public

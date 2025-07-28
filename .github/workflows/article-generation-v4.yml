@@ -887,11 +887,73 @@ jobs:
             echo "- Image count: $(find $ARTICLE_DIR/images -name "*.png" -o -name "*.jpg" | wc -l)" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Create organized final package
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          FINAL_DIR="final_package"
+          
+          # 最終パッケージ用のディレクトリを作成
+          mkdir -p $FINAL_DIR
+          
+          # V4の4つの成果物をわかりやすい名前でコピー
+          # 1. メイン記事 (Markdown)
+          if [ -f "$ARTICLE_DIR/final_article.md" ]; then
+            cp "$ARTICLE_DIR/final_article.md" "$FINAL_DIR/article.md"
+          fi
+          
+          # 2. リサーチ結果
+          if [ -f "$ARTICLE_DIR/research_results.json" ]; then
+            cp "$ARTICLE_DIR/research_results.json" "$FINAL_DIR/research_results.json"
+          fi
+          
+          # 3. ファクトチェック品質レポート
+          if [ -f "$ARTICLE_DIR/factcheck_report.json" ]; then
+            cp "$ARTICLE_DIR/factcheck_report.json" "$FINAL_DIR/factcheck_report.json"
+          fi
+          
+          # 4. 画像フォルダ
+          if [ -d "$ARTICLE_DIR/images" ]; then
+            cp -r "$ARTICLE_DIR/images" "$FINAL_DIR/images"
+          fi
+          
+          # V4成果物説明
+          if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
+            cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables.md"
+          fi
+          
+          # README作成
+          cat > $FINAL_DIR/README.md << EOF
+          # V4 記事生成完了パッケージ（制作向け簡易版）
+          
+          **記事タイトル**: ${{ inputs.article_title }}
+          **生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)
+          **記事ID**: ${{ needs.initialize.outputs.article_id }}
+          
+          ## 📁 V4成果物（4点）
+          
+          1. **article.md** - 記事本文（純粋なMarkdown、SEO構造化なし）
+          2. **research_results.json** - リサーチ結果（信頼性スコア付き）
+          3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）
+          4. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）
+          
+          ## 🎯 ターゲット情報
+          
+          - **ペルソナ**: ${{ inputs.target_persona }}
+          - **キーワード**: ${{ inputs.meta_keywords }}
+          
+          ## 📝 備考
+          
+          SEO構造化とHTML変換は制作側で実施してください。
+          EOF
+          
+          echo "📦 V4 final package created in: $FINAL_DIR"
+          ls -la $FINAL_DIR/
+
       - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: final-article-v4-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
+          name: FINAL_V4_ARTICLE_PACKAGE
+          path: final_package
           retention-days: 30
 
   # 通知（オプション）

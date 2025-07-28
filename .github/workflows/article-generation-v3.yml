@@ -921,11 +921,84 @@ jobs:
             echo "- Image count: $(find $ARTICLE_DIR/images -name "*.png" -o -name "*.jpg" | wc -l)" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Create organized final package
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          FINAL_DIR="final_package"
+          
+          # 最終パッケージ用のディレクトリを作成
+          mkdir -p $FINAL_DIR
+          
+          # わかりやすいファイル名でコピー
+          # メイン記事
+          if [ -f "$ARTICLE_DIR/04_draft_article.md" ]; then
+            cp "$ARTICLE_DIR/04_draft_article.md" "$FINAL_DIR/article.md"
+          fi
+          if [ -f "$ARTICLE_DIR/05_article.html" ]; then
+            cp "$ARTICLE_DIR/05_article.html" "$FINAL_DIR/article.html"
+          fi
+          if [ -f "$ARTICLE_DIR/06_optimized_content.html" ]; then
+            cp "$ARTICLE_DIR/06_optimized_content.html" "$FINAL_DIR/article_optimized.html"
+          fi
+          
+          # リサーチ結果
+          if [ -f "$ARTICLE_DIR/phase2_research.json" ]; then
+            cp "$ARTICLE_DIR/phase2_research.json" "$FINAL_DIR/research_results.json"
+          fi
+          
+          # ファクトチェック
+          if [ -f "$ARTICLE_DIR/factcheck_report.md" ]; then
+            cp "$ARTICLE_DIR/factcheck_report.md" "$FINAL_DIR/factcheck_report.md"
+          fi
+          
+          # SEOレポート
+          if [ -f "$ARTICLE_DIR/seo_optimization_report.md" ]; then
+            cp "$ARTICLE_DIR/seo_optimization_report.md" "$FINAL_DIR/seo_report.md"
+          fi
+          
+          # 画像フォルダ
+          if [ -d "$ARTICLE_DIR/images" ]; then
+            cp -r "$ARTICLE_DIR/images" "$FINAL_DIR/images"
+          fi
+          
+          # サマリー
+          if [ -f "$ARTICLE_DIR/summary.md" ]; then
+            cp "$ARTICLE_DIR/summary.md" "$FINAL_DIR/summary.md"
+          fi
+          
+          # README作成
+          cat > $FINAL_DIR/README.md << EOF
+          # 記事生成完了パッケージ
+          
+          **記事タイトル**: ${{ inputs.article_title }}
+          **生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)
+          **記事ID**: ${{ needs.initialize.outputs.article_id }}
+          
+          ## 📁 ファイル一覧
+          
+          - **article.md** - メイン記事（Markdown形式）
+          - **article.html** - メイン記事（HTML形式）
+          - **article_optimized.html** - SEO最適化済み記事
+          - **research_results.json** - リサーチ結果データ
+          - **factcheck_report.md** - ファクトチェックレポート
+          - **seo_report.md** - SEO最適化レポート
+          - **images/** - 生成画像（ヒーロー画像 + セクション画像）
+          - **summary.md** - 生成サマリー
+          
+          ## 🎯 ターゲット情報
+          
+          - **ペルソナ**: ${{ inputs.target_persona }}
+          - **キーワード**: ${{ inputs.meta_keywords }}
+          EOF
+          
+          echo "📦 Final package created in: $FINAL_DIR"
+          ls -la $FINAL_DIR/
+
       - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: final-article-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
+          name: FINAL_ARTICLE_PACKAGE
+          path: final_package
           retention-days: 30
 
   # 通知（オプション）
