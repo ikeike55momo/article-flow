@@ -62,15 +62,16 @@ jobs:
           mkdir -p output/${ARTICLE_ID}
           
           # 入力情報を保存
-          cat > output/${ARTICLE_ID}/input_params.json << EOF
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          cat > output/${ARTICLE_ID}/input_params.json << EOJSON
           {
             "article_id": "${ARTICLE_ID}",
             "title": "${{ inputs.article_title }}",
             "target_persona": "${{ inputs.target_persona }}",
             "meta_keywords": "${{ inputs.meta_keywords }}",
-            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            "created_at": "${TIMESTAMP}"
           }
-          EOF
+          EOJSON
 
       - name: Upload initialization artifacts
         uses: actions/upload-artifact@v4
@@ -112,13 +113,13 @@ jobs:
         run: |
           cd output/${{ needs.initialize.outputs.article_id }}
           # Phase1が期待する形式のJSONを作成
-          cat > request_params.json << EOF
+          cat > request_params.json << EOJSON
           {
             "topic": "${{ inputs.article_title }}",
             "target_audience": "${{ inputs.target_persona }}",
             "keywords": "${{ inputs.meta_keywords }}"
           }
-          EOF
+          EOJSON
 
       - name: Run Phase 1 Analysis
         id: analyze
@@ -130,12 +131,12 @@ jobs:
           
           # クエリを5バッチに分割
           cd ../output/${{ needs.initialize.outputs.article_id }}
-          python3 -c "
+          cat > split_queries.py << 'EOF'
 import json
 import math
 
 # 分析結果を読み込み
-with open('phase1_analysis.json', 'r') as f:
+with open('phase1_output.json', 'r') as f:
     data = json.load(f)
 
 queries = data.get('analysis', {}).get('research_queries', [])
@@ -166,7 +167,8 @@ meta = {
 }
 with open('research_meta.json', 'w') as f:
     json.dump(meta, f, ensure_ascii=False, indent=2)
-"
+EOF
+          python3 split_queries.py
           
           # メインキーワードを出力
           if [ -f "research_meta.json" ]; then
@@ -219,11 +221,11 @@ with open('research_meta.json', 'w') as f:
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # バッチ用の分析ファイルを作成
-          python3 -c "
+          cat > create_batch_analysis.py << 'EOF'
 import json
 
 # オリジナルの分析結果を読み込み
-with open('phase1_analysis.json', 'r') as f:
+with open('phase1_output.json', 'r') as f:
     original_data = json.load(f)
 
 # このバッチのクエリを読み込み
@@ -236,7 +238,8 @@ batch_analysis['analysis']['research_queries'] = batch_data['queries']
 
 with open('batch_${{ matrix.batch }}_analysis.json', 'w') as f:
     json.dump(batch_analysis, f, ensure_ascii=False, indent=2)
-"
+EOF
+          python3 create_batch_analysis.py
           
           cd ../../github-actions
           python scripts/phase2_research_gemini.py \
@@ -283,7 +286,7 @@ with open('batch_${{ matrix.batch }}_analysis.json', 'w') as f:
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # リサーチ結果を統合
-          python3 -c "
+          cat > merge_research.py << 'EOF'
 import json
 import os
 from pathlib import Path
@@ -325,7 +328,8 @@ with open('phase2_research.json', 'w') as f:
     json.dump(merged_research, f, ensure_ascii=False, indent=2)
 
 print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
-"
+EOF
+          python3 merge_research.py
 
       - name: Upload merged research artifacts
         uses: actions/upload-artifact@v4
@@ -345,28 +349,12 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Initialize article generation
-        id: init
-        run: |
-          # タイトルからIDを生成
-          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-50)
-          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_${CLEAN_TITLE}
-          echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
-          echo "Article ID: ${ARTICLE_ID}"
-          
-          # 出力ディレクトリ作成
-          mkdir -p output/${ARTICLE_ID}
-          
-          # 入力情報を保存
-          cat > output/${ARTICLE_ID}/input_params.json << EOF
-          {
-            "article_id": "${ARTICLE_ID}",
-            "title": "${{ inputs.article_title }}",
-            "target_persona": "${{ inputs.target_persona }}",
-            "meta_keywords": "${{ inputs.meta_keywords }}",
-            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
 
       - name: Generate article structure with Claude
         uses: anthropics/claude-code-base-action@beta
@@ -384,7 +372,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
             タスク:
             1. 以下のファイルを読み込んで理解:
                - input_params.json: 入力パラメータ
-               - phase1_analysis.json: 分析結果
+               - phase1_output.json: 分析結果
                - phase2_research.json: リサーチ結果
             2. 分析とリサーチ結果を踏まえてペルソナに最適化された記事構成を作成
             3. 以下のファイルを生成:
@@ -415,7 +403,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ5: 記事本文の生成
+  # ジョブ6: 記事本文の生成
   generate-content:
     needs: [initialize, generate-structure]
     runs-on: ubuntu-latest
@@ -444,7 +432,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
             タスク:
             1. 以下のファイルを読み込んで理解:
                - input_params.json: 入力パラメータ
-               - phase1_analysis.json: 分析結果
+               - phase1_output.json: 分析結果
                - phase2_research.json: リサーチ結果
                - 01_article_structure.md: 記事構成
                - 02_content_plan.md: 内容計画
@@ -483,7 +471,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ6: ファクトチェック
+  # ジョブ7: ファクトチェック
   factcheck:
     needs: [initialize, generate-content]
     runs-on: ubuntu-latest
@@ -544,7 +532,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ7: SEO最適化
+  # ジョブ8: SEO最適化
   seo-optimization:
     needs: [initialize, generate-content]
     runs-on: ubuntu-latest
@@ -609,7 +597,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ8: 画像生成（MCP + Imagen4）
+  # ジョブ9: 画像生成（MCP + Imagen4）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
     needs: [initialize, generate-structure]
@@ -624,7 +612,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
 
@@ -730,13 +718,13 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: images-${{ needs.initialize-and-structure.outputs.article_id }}
+          name: images-${{ needs.initialize.outputs.article_id }}
           path: |
             output/${{ needs.initialize.outputs.article_id }}/images
             imagen/
           retention-days: 30
 
-  # ジョブ9: 最終処理とアップロード
+  # ジョブ10: 最終処理とアップロード
   finalize:
     needs: [initialize, generate-content, factcheck, seo-optimization, generate-images]
     if: always()
@@ -751,7 +739,7 @@ print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
 
