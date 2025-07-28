@@ -183,43 +183,48 @@ jobs:
           else
             echo "⚠️ Phase 1 analysis file not found, creating default"
             # Create fallback analysis if Claude didn't create the file
-            cat > phase1_output.json << EOJSON
-            {
-              "analysis": {
-                "main_keyword": "${{ inputs.article_title }}",
-                "related_keywords": ["${{ inputs.meta_keywords }}", "健康", "美容", "セルフケア", "効果"],
-                "search_intent": "informational",
-                "content_type": "how-to",
-                "tone": "friendly", 
-                "key_points": ["基本情報", "実践方法", "注意点"],
-                "research_queries": [
-                  "${{ inputs.article_title }} とは",
-                  "${{ inputs.article_title }} 方法",
-                  "${{ inputs.article_title }} 効果",
-                  "${{ inputs.article_title }} 注意点",
-                  "${{ inputs.article_title }} おすすめ",
-                  "${{ inputs.article_title }} 初心者",
-                  "${{ inputs.article_title }} やり方",
-                  "${{ inputs.article_title }} コツ",
-                  "${{ inputs.article_title }} 失敗",
-                  "${{ inputs.article_title }} 安全",
-                  "${{ inputs.article_title }} 専門家",
-                  "${{ inputs.article_title }} 研究",
-                  "${{ inputs.article_title }} 統計",
-                  "${{ inputs.article_title }} 2024",
-                  "${{ inputs.article_title }} 最新"
-                ],
-                "competitor_analysis_needed": true,
-                "local_seo_focus": false,
-                "estimated_sections": 5
-              },
-              "topic": "${{ inputs.article_title }}",
-              "target_audience": "${{ inputs.target_persona }}",
-              "keywords": "${{ inputs.meta_keywords }}",
-              "processed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "workflow_version": "3.0.0"
-            }
-            EOJSON
+            TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            TITLE="${{ inputs.article_title }}"
+            PERSONA="${{ inputs.target_persona }}"
+            KEYWORDS="${{ inputs.meta_keywords }}"
+            
+            cat > phase1_output.json << EOF
+{
+  "analysis": {
+    "main_keyword": "${TITLE}",
+    "related_keywords": ["${KEYWORDS}", "健康", "美容", "セルフケア", "効果"],
+    "search_intent": "informational",
+    "content_type": "how-to",
+    "tone": "friendly", 
+    "key_points": ["基本情報", "実践方法", "注意点"],
+    "research_queries": [
+      "${TITLE} とは",
+      "${TITLE} 方法", 
+      "${TITLE} 効果",
+      "${TITLE} 注意点",
+      "${TITLE} おすすめ",
+      "${TITLE} 初心者",
+      "${TITLE} やり方",
+      "${TITLE} コツ",
+      "${TITLE} 失敗",
+      "${TITLE} 安全",
+      "${TITLE} 専門家",
+      "${TITLE} 研究",
+      "${TITLE} 統計",
+      "${TITLE} 2024",
+      "${TITLE} 最新"
+    ],
+    "competitor_analysis_needed": true,
+    "local_seo_focus": false,
+    "estimated_sections": 5
+  },
+  "topic": "${TITLE}",
+  "target_audience": "${PERSONA}",
+  "keywords": "${KEYWORDS}",
+  "processed_at": "${TIMESTAMP}",
+  "workflow_version": "3.0.0"
+}
+EOF
           fi
 
       - name: Split research queries into batches
