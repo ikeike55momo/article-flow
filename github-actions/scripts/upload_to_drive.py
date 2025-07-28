@@ -67,7 +67,8 @@ class GoogleDriveUploader:
         try:
             folder = self.service.files().create(
                 body=file_metadata,
-                fields='id'
+                fields='id',
+                supportsAllDrives=True
             ).execute()
             
             return folder.get('id')
@@ -96,6 +97,8 @@ class GoogleDriveUploader:
             if not mime_type:
                 mime_type = 'application/octet-stream'
         
+        print(f"Uploading file '{file_name}' to folder ID: {folder_id}")
+        
         file_metadata = {
             'name': file_name,
             'parents': [folder_id]
@@ -111,7 +114,8 @@ class GoogleDriveUploader:
             file = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
-                fields='id,name,webViewLink,webContentLink'
+                fields='id,name,webViewLink,webContentLink',
+                supportsAllDrives=True
             ).execute()
             
             return {
@@ -122,7 +126,14 @@ class GoogleDriveUploader:
             }
             
         except HttpError as e:
-            raise Exception(f"Failed to upload file {file_name}: {e}")
+            print(f"HttpError details: {e}")
+            print(f"File: {file_name}")
+            print(f"Folder ID: {folder_id}")
+            print(f"File metadata: {file_metadata}")
+            if hasattr(e, 'resp'):
+                print(f"Response status: {e.resp.status}")
+                print(f"Response reason: {e.resp.reason}")
+            raise Exception(f"Failed to upload file {file_name} to folder {folder_id}: {e}")
     
     def set_permissions(
         self,
@@ -198,18 +209,25 @@ def create_folder_structure(
 ) -> Dict[str, str]:
     """Create folder structure in Google Drive"""
     
-    # For service accounts, we need to use the shared folder directly
-    # instead of creating new folders (which requires storage quota)
+    import time
     
-    # Use the shared folder ID directly for all uploads
+    # Create main article folder
+    folder_name = f"{datetime.now().strftime('%Y-%m-%d')}_{article_id}"
+    print(f"Creating main folder '{folder_name}' in parent folder ID: {parent_folder_id}")
+    main_folder_id = uploader.create_folder(folder_name, parent_folder_id)
+    print(f"Created main folder with ID: {main_folder_id}")
+    
+    # Wait a bit for folder creation to propagate
+    time.sleep(2)
+    
+    # Create subfolders
+    print(f"Creating subfolders in main folder ID: {main_folder_id}")
     folders = {
-        "main": parent_folder_id,      # Use shared folder directly
-        "images": parent_folder_id,    # Upload images to same folder
-        "reports": parent_folder_id    # Upload reports to same folder
+        "main": main_folder_id,
+        "images": uploader.create_folder("images", main_folder_id),
+        "reports": uploader.create_folder("reports", main_folder_id)
     }
-    
-    # Note: All files will be uploaded to the same shared folder
-    # with appropriate naming to distinguish them
+    print(f"Created folder structure: {folders}")
     
     return folders
 
