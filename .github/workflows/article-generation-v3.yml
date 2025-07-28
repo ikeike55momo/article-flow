@@ -188,43 +188,10 @@ jobs:
             PERSONA="${{ inputs.target_persona }}"
             KEYWORDS="${{ inputs.meta_keywords }}"
             
-            cat > phase1_output.json << EOF
-{
-  "analysis": {
-    "main_keyword": "${TITLE}",
-    "related_keywords": ["${KEYWORDS}", "健康", "美容", "セルフケア", "効果"],
-    "search_intent": "informational",
-    "content_type": "how-to",
-    "tone": "friendly", 
-    "key_points": ["基本情報", "実践方法", "注意点"],
-    "research_queries": [
-      "${TITLE} とは",
-      "${TITLE} 方法", 
-      "${TITLE} 効果",
-      "${TITLE} 注意点",
-      "${TITLE} おすすめ",
-      "${TITLE} 初心者",
-      "${TITLE} やり方",
-      "${TITLE} コツ",
-      "${TITLE} 失敗",
-      "${TITLE} 安全",
-      "${TITLE} 専門家",
-      "${TITLE} 研究",
-      "${TITLE} 統計",
-      "${TITLE} 2024",
-      "${TITLE} 最新"
-    ],
-    "competitor_analysis_needed": true,
-    "local_seo_focus": false,
-    "estimated_sections": 5
-  },
-  "topic": "${TITLE}",
-  "target_audience": "${PERSONA}",
-  "keywords": "${KEYWORDS}",
-  "processed_at": "${TIMESTAMP}",
-  "workflow_version": "3.0.0"
-}
-EOF
+            # 外部スクリプトを使用してJSONを作成
+            cd ../../github-actions
+            TITLE="${TITLE}" PERSONA="${PERSONA}" KEYWORDS="${KEYWORDS}" TIMESTAMP="${TIMESTAMP}" python3 scripts/create_phase1_fallback.py
+            cd ../output/${{ needs.initialize.outputs.article_id }}
           fi
 
       - name: Split research queries into batches
@@ -232,43 +199,7 @@ EOF
         run: |
           # クエリを5バッチに分割
           cd output/${{ needs.initialize.outputs.article_id }}
-          python3 -c "
-import json
-import math
-
-# 分析結果を読み込み
-with open('phase1_output.json', 'r') as f:
-    data = json.load(f)
-
-queries = data.get('analysis', {}).get('research_queries', [])
-total_queries = len(queries)
-batch_size = math.ceil(total_queries / 5)
-
-# 各バッチのクエリを保存
-for i in range(5):
-    start_idx = i * batch_size
-    end_idx = min((i + 1) * batch_size, total_queries)
-    batch_queries = queries[start_idx:end_idx]
-    
-    batch_data = {
-        'batch_id': i,
-        'queries': batch_queries,
-        'total_batches': 5
-    }
-    
-    with open(f'research_batch_{i}.json', 'w') as f:
-        json.dump(batch_data, f, ensure_ascii=False, indent=2)
-
-# メタ情報を保存
-meta = {
-    'total_queries': total_queries,
-    'batch_count': 5,
-    'batch_size': batch_size,
-    'main_keyword': data.get('analysis', {}).get('main_keyword', '')
-}
-with open('research_meta.json', 'w') as f:
-    json.dump(meta, f, ensure_ascii=False, indent=2)
-"
+          python3 ../../github-actions/scripts/split_research_queries.py
           
           # メインキーワードを出力
           if [ -f "research_meta.json" ]; then
@@ -322,25 +253,7 @@ with open('research_meta.json', 'w') as f:
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # バッチ用の分析ファイルを作成
-          BATCH_NUM=${{ matrix.batch }}
-          python3 -c "
-import json
-
-# オリジナルの分析結果を読み込み
-with open('phase1_output.json', 'r') as f:
-    original_data = json.load(f)
-
-# このバッチのクエリを読み込み
-with open('research_batch_${BATCH_NUM}.json', 'r') as f:
-    batch_data = json.load(f)
-
-# バッチ用の分析ファイルを作成
-batch_analysis = original_data.copy()
-batch_analysis['analysis']['research_queries'] = batch_data['queries']
-
-with open('batch_${BATCH_NUM}_analysis.json', 'w') as f:
-    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)
-"
+          BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
           
           cd ../../github-actions
           python scripts/phase2_research_gemini.py \
@@ -387,49 +300,7 @@ with open('batch_${BATCH_NUM}_analysis.json', 'w') as f:
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # リサーチ結果を統合
-          python3 -c "
-import json
-import os
-from pathlib import Path
-from datetime import datetime
-
-# 全バッチの結果を収集
-all_results = []
-all_sources = []
-all_key_findings = []
-
-# バッチディレクトリを探索
-batch_dirs = sorted(Path('batches').glob('research-batch-*'))
-
-for batch_dir in batch_dirs:
-    # 各バッチのphase2_research.jsonを読み込み
-    research_file = batch_dir / 'phase2_research.json'
-    if research_file.exists():
-        with open(research_file, 'r') as f:
-            batch_data = json.load(f)
-            
-            # 結果を統合
-            if 'results' in batch_data:
-                all_results.extend(batch_data['results'])
-            if 'sources' in batch_data:
-                all_sources.extend(batch_data['sources'])
-            if 'key_findings' in batch_data:
-                all_key_findings.extend(batch_data['key_findings'])
-
-# 統合された結果を保存
-merged_research = {
-    'results': all_results,
-    'sources': list(set(all_sources)),  # 重複を除去
-    'key_findings': all_key_findings,
-    'total_queries': len(all_results),
-    'timestamp': str(datetime.now())
-}
-
-with open('phase2_research.json', 'w') as f:
-    json.dump(merged_research, f, ensure_ascii=False, indent=2)
-
-print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
-"
+          python3 ../../github-actions/scripts/merge_research_results.py
 
       - name: Upload merged research artifacts
         uses: actions/upload-artifact@v4

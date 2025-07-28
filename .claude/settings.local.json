@@ -27,7 +27,8 @@
       "WebFetch(domain:note.com)",
       "Bash(yamllint:*)",
       "Bash(sed:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm info:*)"
     ],
     "deny": []
   }
