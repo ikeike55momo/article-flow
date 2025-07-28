@@ -37,18 +37,28 @@ def create_article_structure(research_data: dict, claude: ClaudeAPI, config: Con
     sources = research_data["source_analysis"]["categorized_sources"]
     high_priority_sources = research_data["source_analysis"]["high_priority_sources"]
     
+    # Validate analysis data
+    if "analysis" not in params:
+        raise ValueError("Missing 'analysis' in params - phase1 output may be invalid")
+    
+    analysis = params["analysis"]
+    
+    # Check if this is an error response from phase1
+    if isinstance(analysis, dict) and "parse_error" in analysis:
+        raise ValueError(f"Phase1 analysis failed: {analysis.get('parse_error')}")
+    
     # Format sources for prompt
     sources_summary = format_sources_for_prompt(sources)
     
     # Generate structure
     prompt = prompt_template.format(
         topic=params["topic"],
-        main_keyword=params["analysis"]["main_keyword"],
+        main_keyword=analysis.get("main_keyword", params.get("topic", "")),
         target_audience=params.get("target_audience", "セルフケア志向の女性"),
         word_count=params.get("word_count", "3200"),
         research_summary=sources_summary,
-        key_points="\n".join(params["analysis"].get("key_points", [])),
-        content_type=params["analysis"].get("content_type", "informational")
+        key_points="\n".join(analysis.get("key_points", [])),
+        content_type=analysis.get("content_type", "informational")
     )
     
     structure = claude.generate_with_structured_output(
@@ -114,6 +124,10 @@ def create_article_structure(research_data: dict, claude: ClaudeAPI, config: Con
         max_tokens=6000,
         metadata={"phase": "structure_planning"}
     )
+    
+    # Check if structure generation failed
+    if isinstance(structure, dict) and "parse_error" in structure:
+        raise ValueError(f"Structure generation failed: {structure.get('parse_error')}")
     
     # Validate structure requirements
     validation_results = validate_structure(structure, config)

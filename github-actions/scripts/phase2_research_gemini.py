@@ -32,8 +32,18 @@ def parse_arguments():
 def generate_search_queries(params: dict, claude: ClaudeAPI) -> List[str]:
     """Generate comprehensive search queries based on analysis"""
     
+    # Validate params has required fields
+    if "analysis" not in params:
+        raise ValueError("Missing 'analysis' in params - phase1 output may be invalid")
+    
+    analysis = params["analysis"]
+    
+    # Check if this is an error response from phase1
+    if isinstance(analysis, dict) and "parse_error" in analysis:
+        raise ValueError(f"Phase1 analysis failed: {analysis.get('parse_error')}")
+    
     # Start with queries from Phase 1
-    base_queries = params.get("analysis", {}).get("research_queries", [])
+    base_queries = analysis.get("research_queries", [])
     
     # Read research prompt template
     prompt_template = read_prompt("01_research")
@@ -41,8 +51,8 @@ def generate_search_queries(params: dict, claude: ClaudeAPI) -> List[str]:
     # Generate additional queries
     prompt = prompt_template.format(
         topic=params["topic"],
-        main_keyword=params["analysis"].get("main_keyword", params["topic"]),
-        related_keywords=", ".join(params["analysis"].get("related_keywords", [])),
+        main_keyword=analysis.get("main_keyword", params.get("topic", "")),
+        related_keywords=", ".join(analysis.get("related_keywords", [])),
         target_audience=params.get("target_audience", ""),
         existing_queries="\n".join(base_queries)
     )
@@ -62,6 +72,14 @@ def generate_search_queries(params: dict, claude: ClaudeAPI) -> List[str]:
         temperature=0.5,
         metadata={"phase": "research_query_generation"}
     )
+    
+    # Check if response parsing failed
+    if isinstance(response, dict) and "parse_error" in response:
+        # Use base queries if additional query generation failed
+        logger = setup_logging("phase2_research_gemini", "INFO")
+        logger.warning(f"Failed to generate additional queries: {response.get('parse_error')}")
+        logger.info("Using only base queries from phase1")
+        return base_queries[:25]  # Limit to 25 queries
     
     # Combine all queries
     all_queries = base_queries.copy()

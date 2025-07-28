@@ -26,7 +26,8 @@
       "WebFetch(domain:platform.openai.com)",
       "WebFetch(domain:note.com)",
       "Bash(yamllint:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

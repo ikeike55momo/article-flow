@@ -73,30 +73,54 @@ class ClaudeAPI:
         
         # Add format instructions to prompt if provided
         if expected_format:
-            format_instruction = f"\n\nPlease provide your response in the following JSON format:\n{json.dumps(expected_format, indent=2)}"
+            format_instruction = f"\n\nPlease provide your response in the following JSON format:\n{json.dumps(expected_format, indent=2)}\n\nIMPORTANT: Return ONLY valid JSON without any additional text or markdown formatting."
             prompt = prompt + format_instruction
+        
+        # Add JSON-specific system prompt enhancement
+        enhanced_system = system_prompt or ""
+        enhanced_system += "\n\nAlways respond with valid JSON format only. Do not include any explanatory text outside the JSON structure."
         
         response = self.generate_completion(
             prompt=prompt,
-            system_prompt=system_prompt,
+            system_prompt=enhanced_system,
             **kwargs
         )
         
         # Try to extract JSON from response
         try:
+            # Clean up common formatting issues
+            cleaned_response = response.strip()
+            
             # Look for JSON block in response
-            if "```json" in response:
-                json_start = response.find("```json") + 7
-                json_end = response.find("```", json_start)
-                json_str = response[json_start:json_end].strip()
+            if "```json" in cleaned_response:
+                json_start = cleaned_response.find("```json") + 7
+                json_end = cleaned_response.find("```", json_start)
+                json_str = cleaned_response[json_start:json_end].strip()
+            elif "```" in cleaned_response:
+                # Handle case where it's just wrapped in ``` without json label
+                json_start = cleaned_response.find("```") + 3
+                json_end = cleaned_response.find("```", json_start)
+                json_str = cleaned_response[json_start:json_end].strip()
             else:
                 # Assume entire response is JSON
-                json_str = response.strip()
+                json_str = cleaned_response
             
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
+            # Remove any potential BOM or zero-width spaces
+            json_str = json_str.lstrip('\ufeff').strip()
+            
+            # Parse the JSON
+            parsed_data = json.loads(json_str)
+            
+            # Validate that we got a dictionary (not a list or primitive)
+            if not isinstance(parsed_data, dict):
+                raise ValueError(f"Expected JSON object, got {type(parsed_data).__name__}")
+            
+            return parsed_data
+            
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.debug(f"Response: {response}")
+            logger.debug(f"Original response: {response[:500]}..." if len(response) > 500 else f"Original response: {response}")
+            logger.debug(f"Cleaned JSON string: {json_str[:500]}..." if len(json_str) > 500 else f"Cleaned JSON string: {json_str}")
             
             # Return raw response as fallback
             return {"raw_response": response, "parse_error": str(e)}

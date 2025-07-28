@@ -4,6 +4,7 @@
 import argparse
 import os
 import sys
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -72,6 +73,20 @@ def analyze_request(params: dict, config: Config, claude: ClaudeAPI) -> dict:
         temperature=0.3,
         metadata={"phase": "request_analysis"}
     )
+    
+    # Check if JSON parsing failed
+    if "parse_error" in analysis:
+        logger.error(f"Failed to parse Claude's response: {analysis.get('parse_error')}")
+        logger.debug(f"Raw response: {analysis.get('raw_response', 'No response available')}")
+        raise ValueError(f"Failed to parse analysis response: {analysis.get('parse_error')}")
+    
+    # Validate required fields in analysis
+    required_fields = ["main_keyword", "related_keywords", "search_intent"]
+    missing_fields = [field for field in required_fields if field not in analysis]
+    if missing_fields:
+        logger.error(f"Missing required fields in analysis: {missing_fields}")
+        logger.debug(f"Analysis received: {json.dumps(analysis, indent=2)}")
+        raise ValueError(f"Analysis missing required fields: {', '.join(missing_fields)}")
     
     # Enhance parameters with analysis results
     enhanced_params = params.copy()
@@ -146,8 +161,12 @@ def main():
         write_json(enhanced_params, output_file)
         
         # Log summary
-        logger.info(f"Main keyword identified: {enhanced_params['analysis'].get('main_keyword')}")
-        logger.info(f"Research queries generated: {len(enhanced_params['analysis'].get('research_queries', []))}")
+        analysis = enhanced_params.get('analysis', {})
+        if isinstance(analysis, dict):
+            logger.info(f"Main keyword identified: {analysis.get('main_keyword', 'Not available')}")
+            logger.info(f"Research queries generated: {len(analysis.get('research_queries', []))}")
+        else:
+            logger.warning(f"Analysis data is not in expected format: {type(analysis)}")
         
         log_phase_end(logger, "Phase 1: Request Analysis", success=True)
         
