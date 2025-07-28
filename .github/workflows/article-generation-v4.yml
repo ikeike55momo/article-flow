@@ -233,11 +233,7 @@ jobs:
     needs: [initialize, analysis]
     runs-on: ubuntu-latest
     environment: GA
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        batch: [0, 1, 2, 3, 4]
-      max-parallel: 5
+    timeout-minutes: 25
     
     steps:
       - name: Checkout repository
@@ -269,7 +265,7 @@ jobs:
         run: |
           pip install google-generativeai httpx
 
-      - name: Research with Gemini (Batch ${{ matrix.batch }})
+      - name: Research with Gemini (V2 Single Process Style)
         run: |
           cd output/${{ needs.initialize.outputs.article_id }}
           
