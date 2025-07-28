@@ -515,34 +515,18 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            記事本文をMarkdown形式で生成してください。
+            以下のファイルを読み込み、記事本文を直接生成してください。
             
-            【重要】必ずWriteツールを使用してfinal_article.mdファイルを作成してください。
+            1. 読み込むファイル:
+               - input_params.json
+               - phase1_output.json  
+               - research_results.json
             
-            タスク:
-            1. 以下のファイルをReadツールで読み込んで理解:
-               - input_params.json: 入力パラメータ
-               - phase1_output.json: 分析結果
-               - research_results.json: リサーチ結果
-               - 01_article_structure.md: 記事構成
-               - 02_content_plan.md: 内容計画
-            
-            2. ペルソナに最適化された記事本文を生成:
-               - ペルソナの言葉遣いや関心事を反映
-               - 具体的で実践的な内容
-               - 読みやすい構成と自然な流れ
-            
-            3. 【必須】Writeツールを使用して以下のファイルを作成:
-               - final_article.md: Markdown形式の記事本文
-               
-               ファイルパス: output/$ARTICLE_ID/final_article.md
-            
-            要件:
-            - 3000-5000文字程度
-            - ペルソナに響く言葉選び
-            - 薬機法・景表法準拠
-            - 純粋なMarkdownフォーマット（HTML要素は使用しない）
-            - ファイルは必ず作成し、内容を書き込むこと
+            2. 【必須】Writeツールでfinal_article.mdを作成:
+               - ファイルパス: output/$ARTICLE_ID/final_article.md
+               - Markdown形式、3000-5000文字
+               - ペルソナ「爪が弱い30代女性」向け
+               - 薬機法・景表法準拠
           
           allowed_tools: |
             Read,
@@ -552,7 +536,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
-          max_turns: "15"
+          max_turns: "30"
 
       - name: Verify article generation
         id: verify-article
@@ -757,7 +741,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
-          max_turns: "15"
+          max_turns: "30"
 
       - name: Process generated images
         run: |
