@@ -79,9 +79,73 @@ jobs:
           path: output/${{ steps.init.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ2: リサーチ（Gemini使用）
-  research:
+  # ジョブ2: リクエスト分析
+  analysis:
     needs: initialize
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    outputs:
+      main_keyword: ${{ steps.analyze.outputs.main_keyword }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download initialization artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: init-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd github-actions
+          pip install -r requirements.txt
+
+      - name: Create analysis input
+        run: |
+          cd output/${{ needs.initialize.outputs.article_id }}
+          # Phase1が期待する形式のJSONを作成
+          cat > request_params.json << EOF
+          {
+            "topic": "${{ inputs.article_title }}",
+            "target_audience": "${{ inputs.target_persona }}",
+            "keywords": "${{ inputs.meta_keywords }}"
+          }
+          EOF
+
+      - name: Run Phase 1 Analysis
+        id: analyze
+        run: |
+          cd github-actions
+          python scripts/phase1_request_analysis.py \
+            --params-file ../output/${{ needs.initialize.outputs.article_id }}/request_params.json \
+            --output-dir ../output/${{ needs.initialize.outputs.article_id }}
+          
+          # 出力からメインキーワードを取得
+          if [ -f "../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json" ]; then
+            MAIN_KW=$(python -c "import json; data=json.load(open('../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json')); print(data.get('analysis', {}).get('main_keyword', ''))")
+            echo "main_keyword=${MAIN_KW}" >> $GITHUB_OUTPUT
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ3: リサーチ（Gemini使用）
+  research:
+    needs: [initialize, analysis]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
@@ -110,10 +174,8 @@ jobs:
         run: |
           cd github-actions
           python scripts/phase2_research_gemini.py \
-            --output-dir ../output/${{ needs.initialize.outputs.article_id }} \
-            --title "${{ inputs.article_title }}" \
-            --persona "${{ inputs.target_persona }}" \
-            --keywords "${{ inputs.meta_keywords }}"
+            --params-file ../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json \
+            --output-dir ../output/${{ needs.initialize.outputs.article_id }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -124,9 +186,9 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ3: 記事構成の生成
+  # ジョブ4: 記事構成の生成
   generate-structure:
-    needs: [initialize, research]
+    needs: [initialize, analysis, research]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
@@ -174,8 +236,9 @@ jobs:
             タスク:
             1. 以下のファイルを読み込んで理解:
                - input_params.json: 入力パラメータ
-               - research_results.json: リサーチ結果
-            2. リサーチ結果を踏まえてペルソナに最適化された記事構成を作成
+               - phase1_analysis.json: 分析結果
+               - phase2_research.json: リサーチ結果
+            2. 分析とリサーチ結果を踏まえてペルソナに最適化された記事構成を作成
             3. 以下のファイルを生成:
                - 01_article_structure.md: 詳細な記事構成
                - 02_content_plan.md: 各セクションの内容計画
@@ -204,7 +267,7 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ4: 記事本文の生成
+  # ジョブ5: 記事本文の生成
   generate-content:
     needs: [initialize, generate-structure]
     runs-on: ubuntu-latest
@@ -233,6 +296,8 @@ jobs:
             タスク:
             1. 以下のファイルを読み込んで理解:
                - input_params.json: 入力パラメータ
+               - phase1_analysis.json: 分析結果
+               - phase2_research.json: リサーチ結果
                - 01_article_structure.md: 記事構成
                - 02_content_plan.md: 内容計画
                - 03_seo_strategy.md: SEO戦略
@@ -270,7 +335,7 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ5: ファクトチェック
+  # ジョブ6: ファクトチェック
   factcheck:
     needs: [initialize, generate-content]
     runs-on: ubuntu-latest
@@ -299,7 +364,7 @@ jobs:
             タスク:
             1. 以下のファイルを読み込んで内容を確認:
                - 04_draft_article.md: 記事本文
-               - research_results.json: リサーチ結果
+               - phase2_research.json: リサーチ結果
             
             2. 以下の観点でチェック:
                - 事実の正確性（リサーチ結果との照合）
@@ -331,7 +396,7 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ6: SEO最適化
+  # ジョブ7: SEO最適化
   seo-optimization:
     needs: [initialize, factcheck]
     runs-on: ubuntu-latest
@@ -396,7 +461,7 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ7: 画像生成（MCP + Imagen4）
+  # ジョブ8: 画像生成（MCP + Imagen4）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
     needs: [initialize, generate-structure, seo-optimization]
@@ -523,7 +588,7 @@ jobs:
             imagen/
           retention-days: 30
 
-  # ジョブ8: 最終処理とアップロード
+  # ジョブ9: 最終処理とアップロード
   finalize:
     needs: [initialize, generate-content, factcheck, seo-optimization, generate-images]
     if: always()
