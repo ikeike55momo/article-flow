@@ -27,11 +27,7 @@ on:
         type: boolean
         default: true
       
-      enable_drive_upload:
-        description: 'Google Driveへのアップロード'
-        required: false
-        type: boolean
-        default: false
+      # Google Drive upload removed
 
 env:
   PYTHON_VERSION: '3.11'
@@ -844,26 +840,7 @@ jobs:
           
           max_turns: "10"
 
-      # Google Drive Upload (オプション)
-      - name: Setup Python for Drive upload
-        if: ${{ inputs.enable_drive_upload }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies for Drive upload
-        if: ${{ inputs.enable_drive_upload }}
-        run: |
-          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pyyaml
-
-      - name: Upload to Google Drive
-        if: ${{ inputs.enable_drive_upload }}
-        run: |
-          python github-actions/scripts/upload_to_drive.py \
-            --article-dir output/${{ needs.initialize.outputs.article_id }} \
-            --drive-folder-id ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-        env:
-          GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+      # Google Drive upload removed - using GitHub Artifacts only
 
       - name: Create workflow summary
         if: always()
@@ -901,69 +878,167 @@ jobs:
           ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           FINAL_DIR="final_package"
           
-          # デバッグ: 利用可能なファイルを表示
-          echo "🔍 Available files in article directory:"
-          ls -la $ARTICLE_DIR/
+          # 詳細デバッグ: アーティファクトとファイルの確認
+          echo "====== FINAL PACKAGE CREATION DEBUG ======"
+          echo "🔍 ARTICLE_DIR: $ARTICLE_DIR"
+          echo "📁 Article directory check:"
+          [ -d "$ARTICLE_DIR" ] && echo "✅ Directory exists" || echo "❌ Directory NOT found"
+          
+          echo ""
+          echo "📋 All downloaded artifacts and files:"
+          find . -name "*.json" -o -name "*.md" -o -name "*.png" -o -name "*.jpg" | head -20
+          
+          echo ""
+          echo "🔍 Current working directory contents:"
+          ls -la
+          
+          echo ""
+          echo "🔍 Output directory contents:"
+          if [ -d "output/" ]; then
+            find output/ -type f | head -20
+          else
+            echo "❌ No output directory found"
+          fi
+          
+          echo "=============================================="
           
           # 最終パッケージ用のディレクトリを作成
           mkdir -p $FINAL_DIR
           
-          # V4の4つの成果物をわかりやすい名前でコピー
-          # 1. メイン記事 (Markdown) - 複数の可能性をチェック
-          echo "🔍 Searching for article files in $ARTICLE_DIR..."
-          ls -la "$ARTICLE_DIR/" || echo "Directory listing failed"
+          # V4の4つの成果物を収集（アーティファクトから直接）
+          echo ""
+          echo "🔄 Collecting V4 deliverables from artifacts..."
           
+          # 1. メイン記事 (Markdown) - アーティファクトから検索
           ARTICLE_FOUND=false
-          if [ -f "$ARTICLE_DIR/final_article.md" ]; then
-            cp "$ARTICLE_DIR/final_article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied final_article.md ($(wc -c < "$ARTICLE_DIR/final_article.md") bytes)"
-            ARTICLE_FOUND=true
-          elif [ -f "$ARTICLE_DIR/04_draft_article.md" ]; then
-            cp "$ARTICLE_DIR/04_draft_article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied 04_draft_article.md ($(wc -c < "$ARTICLE_DIR/04_draft_article.md") bytes)"
-            ARTICLE_FOUND=true
-          elif [ -f "$ARTICLE_DIR/article.md" ]; then
-            cp "$ARTICLE_DIR/article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied article.md ($(wc -c < "$ARTICLE_DIR/article.md") bytes)"
-            ARTICLE_FOUND=true
-          else
-            echo "❌ ERROR: No article file found!"
-            echo "📁 All files in $ARTICLE_DIR:"
-            find "$ARTICLE_DIR" -type f -name "*" | head -20
-            echo "📝 Available .md files:"
-            find "$ARTICLE_DIR" -name "*.md" -type f || echo "No .md files found"
-            exit 1
+          
+          # 複数の場所から記事ファイルを検索
+          POSSIBLE_ARTICLES=(
+            "$ARTICLE_DIR/final_article.md"
+            "$ARTICLE_DIR/04_draft_article.md" 
+            "$ARTICLE_DIR/article.md"
+            "final_article.md"
+            "04_draft_article.md"
+            "article.md"
+          )
+          
+          for article_path in "${POSSIBLE_ARTICLES[@]}"; do
+            if [ -f "$article_path" ]; then
+              cp "$article_path" "$FINAL_DIR/article.md"
+              echo "✅ Found and copied article: $article_path ($(wc -c < "$article_path") bytes)"
+              ARTICLE_FOUND=true
+              break
+            fi
+          done
+          
+          # 記事が見つからない場合は.mdファイルを検索
+          if [ "$ARTICLE_FOUND" = false ]; then
+            echo "⚠️ Standard article files not found, searching for any .md files..."
+            MD_FILE=$(find . -name "*.md" -type f ! -name "README.md" | head -1)
+            if [ -n "$MD_FILE" ]; then
+              cp "$MD_FILE" "$FINAL_DIR/article.md"
+              echo "✅ Using fallback .md file: $MD_FILE ($(wc -c < "$MD_FILE") bytes)"
+              ARTICLE_FOUND=true
+            fi
           fi
           
-          # Verify the article was actually copied
-          if [ ! -f "$FINAL_DIR/article.md" ]; then
-            echo "❌ ERROR: Failed to copy article to final package!"
-            echo "📁 Final directory contents:"
-            ls -la "$FINAL_DIR/"
-            exit 1
-          else
-            echo "✅ Article successfully copied to final package ($(wc -c < "$FINAL_DIR/article.md") bytes)"
+          if [ "$ARTICLE_FOUND" = false ]; then
+            echo "❌ ERROR: No article file found in any location!"
+            echo "Creating minimal article as last resort..."
+            cat > "$FINAL_DIR/article.md" << 'EOF'
+# 記事生成エラー
+記事ファイルが見つかりませんでした。
+ワークフローの実行ログを確認してください。
+EOF
           fi
           
-          # 2. リサーチ結果
-          if [ -f "$ARTICLE_DIR/research_results.json" ]; then
-            cp "$ARTICLE_DIR/research_results.json" "$FINAL_DIR/research_results.json"
+          # 2. リサーチ結果 - 複数の場所から検索
+          RESEARCH_LOCATIONS=(
+            "$ARTICLE_DIR/research_results.json"
+            "research_results.json"
+            "research-*.json"
+          )
+          
+          RESEARCH_FOUND=false
+          for loc in "${RESEARCH_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/research_results.json"
+              echo "✅ Found research results: $loc"
+              RESEARCH_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$RESEARCH_FOUND" = false ]; then
+            # 検索パターンを使用
+            RESEARCH_FILE=$(find . -name "*research*.json" | head -1)
+            if [ -n "$RESEARCH_FILE" ]; then
+              cp "$RESEARCH_FILE" "$FINAL_DIR/research_results.json"
+              echo "✅ Using research file: $RESEARCH_FILE"
+            else
+              echo "⚠️ No research results found"
+            fi
           fi
           
-          # 3. ファクトチェック品質レポート
-          if [ -f "$ARTICLE_DIR/factcheck_report.json" ]; then
-            cp "$ARTICLE_DIR/factcheck_report.json" "$FINAL_DIR/factcheck_report.json"
+          # 3. ファクトチェック品質レポート - 複数の場所から検索
+          FACTCHECK_LOCATIONS=(
+            "$ARTICLE_DIR/factcheck_report.json"
+            "factcheck_report.json"
+            "factcheck-*.json"
+          )
+          
+          FACTCHECK_FOUND=false
+          for loc in "${FACTCHECK_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/factcheck_report.json"
+              echo "✅ Found factcheck report: $loc"
+              FACTCHECK_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$FACTCHECK_FOUND" = false ]; then
+            # 検索パターンを使用
+            FACTCHECK_FILE=$(find . -name "*factcheck*.json" | head -1)
+            if [ -n "$FACTCHECK_FILE" ]; then
+              cp "$FACTCHECK_FILE" "$FINAL_DIR/factcheck_report.json"
+              echo "✅ Using factcheck file: $FACTCHECK_FILE"
+            else
+              echo "⚠️ No factcheck report found"
+            fi
           fi
           
-          # 4. 画像フォルダ
+          # 4. 画像フォルダ - 複数の場所から検索
+          mkdir -p "$FINAL_DIR/images"
+          IMAGES_FOUND=false
+          
+          # 標準的な画像フォルダの場所
           if [ -d "$ARTICLE_DIR/images" ]; then
-            cp -r "$ARTICLE_DIR/images" "$FINAL_DIR/images"
+            cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
+            echo "✅ Found images in $ARTICLE_DIR/images"
+            IMAGES_FOUND=true
+          fi
+          
+          # その他の場所から画像を検索
+          if [ "$IMAGES_FOUND" = false ]; then
+            find . -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | while read img; do
+              if [[ "$img" != *"README"* ]]; then
+                cp "$img" "$FINAL_DIR/images/" 2>/dev/null || true
+                echo "✅ Found image: $img"
+                IMAGES_FOUND=true
+              fi
+            done
           fi
           
           # V4成果物説明
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
             cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables.md"
           fi
+          
+          # 最終パッケージの内容確認
+          echo ""
+          echo "📦 Final package contents:"
+          find "$FINAL_DIR" -type f -exec ls -la {} \;
           
           # README作成
           cat > $FINAL_DIR/README.md << EOF

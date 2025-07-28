@@ -28,7 +28,10 @@
       "Bash(yamllint:*)",
       "Bash(sed:*)",
       "Bash(grep:*)",
-      "Bash(npm info:*)"
+      "Bash(npm info:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh api:*)"
     ],
     "deny": []
   }
