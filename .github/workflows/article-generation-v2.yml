@@ -594,7 +594,7 @@ jobs:
 
       - name: Install upload dependencies
         if: ${{ inputs.auto_publish && success() }}
-        run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+        run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pyyaml
 
       # Upload to Google Drive
       - name: Upload to Google Drive
