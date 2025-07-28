@@ -166,7 +166,7 @@ jobs:
             }
           
           allowed_tools: |
-            View,
+            Read,
             Write
           
           claude_env: |
@@ -232,43 +232,43 @@ EOF
         run: |
           # クエリを5バッチに分割
           cd output/${{ needs.initialize.outputs.article_id }}
-          echo -n "" > split_queries.py
-          echo "import json" >> split_queries.py
-          echo "import math" >> split_queries.py
-          echo "" >> split_queries.py
-          echo "# 分析結果を読み込み" >> split_queries.py
-          echo "with open('phase1_output.json', 'r') as f:" >> split_queries.py
-          echo "    data = json.load(f)" >> split_queries.py
-          echo "" >> split_queries.py
-          echo "queries = data.get('analysis', {}).get('research_queries', [])" >> split_queries.py
-          echo "total_queries = len(queries)" >> split_queries.py
-          echo "batch_size = math.ceil(total_queries / 5)" >> split_queries.py
-          echo "" >> split_queries.py
-          echo "# 各バッチのクエリを保存" >> split_queries.py
-          echo "for i in range(5):" >> split_queries.py
-          echo "    start_idx = i * batch_size" >> split_queries.py
-          echo "    end_idx = min((i + 1) * batch_size, total_queries)" >> split_queries.py
-          echo "    batch_queries = queries[start_idx:end_idx]" >> split_queries.py
-          echo "    " >> split_queries.py
-          echo "    batch_data = {" >> split_queries.py
-          echo "        'batch_id': i," >> split_queries.py
-          echo "        'queries': batch_queries," >> split_queries.py
-          echo "        'total_batches': 5" >> split_queries.py
-          echo "    }" >> split_queries.py
-          echo "    " >> split_queries.py
-          echo "    with open(f'research_batch_{i}.json', 'w') as f:" >> split_queries.py
-          echo "        json.dump(batch_data, f, ensure_ascii=False, indent=2)" >> split_queries.py
-          echo "" >> split_queries.py
-          echo "# メタ情報を保存" >> split_queries.py
-          echo "meta = {" >> split_queries.py
-          echo "    'total_queries': total_queries," >> split_queries.py
-          echo "    'batch_count': 5," >> split_queries.py
-          echo "    'batch_size': batch_size," >> split_queries.py
-          echo "    'main_keyword': data.get('analysis', {}).get('main_keyword', '')" >> split_queries.py
-          echo "}" >> split_queries.py
-          echo "with open('research_meta.json', 'w') as f:" >> split_queries.py
-          echo "    json.dump(meta, f, ensure_ascii=False, indent=2)" >> split_queries.py
-          python3 split_queries.py
+          python3 -c "
+import json
+import math
+
+# 分析結果を読み込み
+with open('phase1_output.json', 'r') as f:
+    data = json.load(f)
+
+queries = data.get('analysis', {}).get('research_queries', [])
+total_queries = len(queries)
+batch_size = math.ceil(total_queries / 5)
+
+# 各バッチのクエリを保存
+for i in range(5):
+    start_idx = i * batch_size
+    end_idx = min((i + 1) * batch_size, total_queries)
+    batch_queries = queries[start_idx:end_idx]
+    
+    batch_data = {
+        'batch_id': i,
+        'queries': batch_queries,
+        'total_batches': 5
+    }
+    
+    with open(f'research_batch_{i}.json', 'w') as f:
+        json.dump(batch_data, f, ensure_ascii=False, indent=2)
+
+# メタ情報を保存
+meta = {
+    'total_queries': total_queries,
+    'batch_count': 5,
+    'batch_size': batch_size,
+    'main_keyword': data.get('analysis', {}).get('main_keyword', '')
+}
+with open('research_meta.json', 'w') as f:
+    json.dump(meta, f, ensure_ascii=False, indent=2)
+"
           
           # メインキーワードを出力
           if [ -f "research_meta.json" ]; then
@@ -277,7 +277,6 @@ EOF
           fi
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ENABLE_GEMINI_RESEARCH: "true"
 
       - name: Upload analysis artifacts
@@ -323,24 +322,25 @@ EOF
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # バッチ用の分析ファイルを作成
-          echo -n "" > create_batch_analysis.py
-          echo "import json" >> create_batch_analysis.py
-          echo "" >> create_batch_analysis.py
-          echo "# オリジナルの分析結果を読み込み" >> create_batch_analysis.py
-          echo "with open('phase1_output.json', 'r') as f:" >> create_batch_analysis.py
-          echo "    original_data = json.load(f)" >> create_batch_analysis.py
-          echo "" >> create_batch_analysis.py
-          echo "# このバッチのクエリを読み込み" >> create_batch_analysis.py
-          echo "with open('research_batch_\${{ matrix.batch }}.json', 'r') as f:" >> create_batch_analysis.py
-          echo "    batch_data = json.load(f)" >> create_batch_analysis.py
-          echo "" >> create_batch_analysis.py
-          echo "# バッチ用の分析ファイルを作成" >> create_batch_analysis.py
-          echo "batch_analysis = original_data.copy()" >> create_batch_analysis.py
-          echo "batch_analysis['analysis']['research_queries'] = batch_data['queries']" >> create_batch_analysis.py
-          echo "" >> create_batch_analysis.py
-          echo "with open('batch_\${{ matrix.batch }}_analysis.json', 'w') as f:" >> create_batch_analysis.py
-          echo "    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)" >> create_batch_analysis.py
-          python3 create_batch_analysis.py
+          BATCH_NUM=${{ matrix.batch }}
+          python3 -c "
+import json
+
+# オリジナルの分析結果を読み込み
+with open('phase1_output.json', 'r') as f:
+    original_data = json.load(f)
+
+# このバッチのクエリを読み込み
+with open('research_batch_${BATCH_NUM}.json', 'r') as f:
+    batch_data = json.load(f)
+
+# バッチ用の分析ファイルを作成
+batch_analysis = original_data.copy()
+batch_analysis['analysis']['research_queries'] = batch_data['queries']
+
+with open('batch_${BATCH_NUM}_analysis.json', 'w') as f:
+    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)
+"
           
           cd ../../github-actions
           python scripts/phase2_research_gemini.py \
@@ -487,7 +487,7 @@ EOF
             - 読みやすく価値のある記事構成
           
           allowed_tools: |
-            View,
+            Read,
             Write,
             Edit
           
@@ -555,7 +555,7 @@ EOF
             - 薬機法・景表法準拠
           
           allowed_tools: |
-            View,
+            Read,
             Write,
             Edit
           
@@ -681,7 +681,7 @@ EOF
                - seo_optimization_report.md: 最適化内容レポート
           
           allowed_tools: |
-            View,
+            Read,
             Write,
             Edit
           
@@ -769,7 +769,7 @@ EOF
             }
           
           allowed_tools: |
-            View,
+            Read,
             Write,
             mcp__gemini-imagen__generate_image,
             mcp__gemini-imagen__list_models
@@ -826,7 +826,7 @@ EOF
 
   # ジョブ10: 最終処理とアップロード
   finalize:
-    needs: [initialize, generate-content, factcheck, seo-optimization, generate-images]
+    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, seo-optimization, generate-images]
     if: always()
     runs-on: ubuntu-latest
     environment: GA
@@ -864,7 +864,7 @@ EOF
                - 使用画像のリスト
           
           allowed_tools: |
-            View,
+            Read,
             Write,
             Edit
           
