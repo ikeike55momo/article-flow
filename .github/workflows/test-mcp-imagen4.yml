@@ -124,15 +124,34 @@ jobs:
       - name: Create summary
         if: always()
         run: |
-          if [ -f "test-output/images/test_hero.png" ]; then
+          # MCPは imagen/ ディレクトリに保存する
+          if [ -d "imagen" ] && [ "$(ls -A imagen/*.png imagen/*.jpg 2>/dev/null)" ]; then
             echo "## ✅ MCP Imagen4 Test Success!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Model**: ${{ github.event.inputs.test_model }}" >> $GITHUB_STEP_SUMMARY
             echo "**Prompt**: ${{ github.event.inputs.test_prompt }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Image was generated successfully. Check artifacts for the generated image." >> $GITHUB_STEP_SUMMARY
+            echo "### Generated Images:" >> $GITHUB_STEP_SUMMARY
+            for img in imagen/*.png imagen/*.jpg; do
+              if [ -f "$img" ]; then
+                echo "- $(basename $img)" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Images were generated successfully. Check artifacts for the generated images." >> $GITHUB_STEP_SUMMARY
+          elif [ -d "test-output/images" ] && [ "$(ls -A test-output/images/*.png test-output/images/*.jpg 2>/dev/null)" ]; then
+            echo "## ✅ MCP Imagen4 Test Success!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Images found in test-output/images. Check artifacts." >> $GITHUB_STEP_SUMMARY
           else
             echo "## ❌ MCP Imagen4 Test Failed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Image generation failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
+            echo "No images found in expected directories:" >> $GITHUB_STEP_SUMMARY
+            echo "- imagen/" >> $GITHUB_STEP_SUMMARY
+            echo "- test-output/images/" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Current directory contents:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -la >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
