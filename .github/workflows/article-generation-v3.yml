@@ -131,43 +131,42 @@ jobs:
           
           # クエリを5バッチに分割
           cd ../output/${{ needs.initialize.outputs.article_id }}
-          cat > split_queries.py << 'EOF'
-import json
-import math
-
-# 分析結果を読み込み
-with open('phase1_output.json', 'r') as f:
-    data = json.load(f)
-
-queries = data.get('analysis', {}).get('research_queries', [])
-total_queries = len(queries)
-batch_size = math.ceil(total_queries / 5)
-
-# 各バッチのクエリを保存
-for i in range(5):
-    start_idx = i * batch_size
-    end_idx = min((i + 1) * batch_size, total_queries)
-    batch_queries = queries[start_idx:end_idx]
-    
-    batch_data = {
-        'batch_id': i,
-        'queries': batch_queries,
-        'total_batches': 5
-    }
-    
-    with open(f'research_batch_{i}.json', 'w') as f:
-        json.dump(batch_data, f, ensure_ascii=False, indent=2)
-
-# メタ情報を保存
-meta = {
-    'total_queries': total_queries,
-    'batch_count': 5,
-    'batch_size': batch_size,
-    'main_keyword': data.get('analysis', {}).get('main_keyword', '')
-}
-with open('research_meta.json', 'w') as f:
-    json.dump(meta, f, ensure_ascii=False, indent=2)
-EOF
+          echo -n "" > split_queries.py
+          echo "import json" >> split_queries.py
+          echo "import math" >> split_queries.py
+          echo "" >> split_queries.py
+          echo "# 分析結果を読み込み" >> split_queries.py
+          echo "with open('phase1_output.json', 'r') as f:" >> split_queries.py
+          echo "    data = json.load(f)" >> split_queries.py
+          echo "" >> split_queries.py
+          echo "queries = data.get('analysis', {}).get('research_queries', [])" >> split_queries.py
+          echo "total_queries = len(queries)" >> split_queries.py
+          echo "batch_size = math.ceil(total_queries / 5)" >> split_queries.py
+          echo "" >> split_queries.py
+          echo "# 各バッチのクエリを保存" >> split_queries.py
+          echo "for i in range(5):" >> split_queries.py
+          echo "    start_idx = i * batch_size" >> split_queries.py
+          echo "    end_idx = min((i + 1) * batch_size, total_queries)" >> split_queries.py
+          echo "    batch_queries = queries[start_idx:end_idx]" >> split_queries.py
+          echo "    " >> split_queries.py
+          echo "    batch_data = {" >> split_queries.py
+          echo "        'batch_id': i," >> split_queries.py
+          echo "        'queries': batch_queries," >> split_queries.py
+          echo "        'total_batches': 5" >> split_queries.py
+          echo "    }" >> split_queries.py
+          echo "    " >> split_queries.py
+          echo "    with open(f'research_batch_{i}.json', 'w') as f:" >> split_queries.py
+          echo "        json.dump(batch_data, f, ensure_ascii=False, indent=2)" >> split_queries.py
+          echo "" >> split_queries.py
+          echo "# メタ情報を保存" >> split_queries.py
+          echo "meta = {" >> split_queries.py
+          echo "    'total_queries': total_queries," >> split_queries.py
+          echo "    'batch_count': 5," >> split_queries.py
+          echo "    'batch_size': batch_size," >> split_queries.py
+          echo "    'main_keyword': data.get('analysis', {}).get('main_keyword', '')" >> split_queries.py
+          echo "}" >> split_queries.py
+          echo "with open('research_meta.json', 'w') as f:" >> split_queries.py
+          echo "    json.dump(meta, f, ensure_ascii=False, indent=2)" >> split_queries.py
           python3 split_queries.py
           
           # メインキーワードを出力
@@ -221,24 +220,23 @@ EOF
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # バッチ用の分析ファイルを作成
-          cat > create_batch_analysis.py << 'EOF'
-import json
-
-# オリジナルの分析結果を読み込み
-with open('phase1_output.json', 'r') as f:
-    original_data = json.load(f)
-
-# このバッチのクエリを読み込み
-with open('research_batch_${{ matrix.batch }}.json', 'r') as f:
-    batch_data = json.load(f)
-
-# バッチ用の分析ファイルを作成
-batch_analysis = original_data.copy()
-batch_analysis['analysis']['research_queries'] = batch_data['queries']
-
-with open('batch_${{ matrix.batch }}_analysis.json', 'w') as f:
-    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)
-EOF
+          echo -n "" > create_batch_analysis.py
+          echo "import json" >> create_batch_analysis.py
+          echo "" >> create_batch_analysis.py
+          echo "# オリジナルの分析結果を読み込み" >> create_batch_analysis.py
+          echo "with open('phase1_output.json', 'r') as f:" >> create_batch_analysis.py
+          echo "    original_data = json.load(f)" >> create_batch_analysis.py
+          echo "" >> create_batch_analysis.py
+          echo "# このバッチのクエリを読み込み" >> create_batch_analysis.py
+          echo "with open('research_batch_\${{ matrix.batch }}.json', 'r') as f:" >> create_batch_analysis.py
+          echo "    batch_data = json.load(f)" >> create_batch_analysis.py
+          echo "" >> create_batch_analysis.py
+          echo "# バッチ用の分析ファイルを作成" >> create_batch_analysis.py
+          echo "batch_analysis = original_data.copy()" >> create_batch_analysis.py
+          echo "batch_analysis['analysis']['research_queries'] = batch_data['queries']" >> create_batch_analysis.py
+          echo "" >> create_batch_analysis.py
+          echo "with open('batch_\${{ matrix.batch }}_analysis.json', 'w') as f:" >> create_batch_analysis.py
+          echo "    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)" >> create_batch_analysis.py
           python3 create_batch_analysis.py
           
           cd ../../github-actions
@@ -286,49 +284,48 @@ EOF
           cd output/${{ needs.initialize.outputs.article_id }}
           
           # リサーチ結果を統合
-          cat > merge_research.py << 'EOF'
-import json
-import os
-from pathlib import Path
-from datetime import datetime
-
-# 全バッチの結果を収集
-all_results = []
-all_sources = []
-all_key_findings = []
-
-# バッチディレクトリを探索
-batch_dirs = sorted(Path('batches').glob('research-batch-*'))
-
-for batch_dir in batch_dirs:
-    # 各バッチのphase2_research.jsonを読み込み
-    research_file = batch_dir / 'phase2_research.json'
-    if research_file.exists():
-        with open(research_file, 'r') as f:
-            batch_data = json.load(f)
-            
-            # 結果を統合
-            if 'results' in batch_data:
-                all_results.extend(batch_data['results'])
-            if 'sources' in batch_data:
-                all_sources.extend(batch_data['sources'])
-            if 'key_findings' in batch_data:
-                all_key_findings.extend(batch_data['key_findings'])
-
-# 統合された結果を保存
-merged_research = {
-    'results': all_results,
-    'sources': list(set(all_sources)),  # 重複を除去
-    'key_findings': all_key_findings,
-    'total_queries': len(all_results),
-    'timestamp': str(datetime.now())
-}
-
-with open('phase2_research.json', 'w') as f:
-    json.dump(merged_research, f, ensure_ascii=False, indent=2)
-
-print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
-EOF
+          echo -n "" > merge_research.py
+          echo "import json" >> merge_research.py
+          echo "import os" >> merge_research.py
+          echo "from pathlib import Path" >> merge_research.py
+          echo "from datetime import datetime" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "# 全バッチの結果を収集" >> merge_research.py
+          echo "all_results = []" >> merge_research.py
+          echo "all_sources = []" >> merge_research.py
+          echo "all_key_findings = []" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "# バッチディレクトリを探索" >> merge_research.py
+          echo "batch_dirs = sorted(Path('batches').glob('research-batch-*'))" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "for batch_dir in batch_dirs:" >> merge_research.py
+          echo "    # 各バッチのphase2_research.jsonを読み込み" >> merge_research.py
+          echo "    research_file = batch_dir / 'phase2_research.json'" >> merge_research.py
+          echo "    if research_file.exists():" >> merge_research.py
+          echo "        with open(research_file, 'r') as f:" >> merge_research.py
+          echo "            batch_data = json.load(f)" >> merge_research.py
+          echo "            " >> merge_research.py
+          echo "            # 結果を統合" >> merge_research.py
+          echo "            if 'results' in batch_data:" >> merge_research.py
+          echo "                all_results.extend(batch_data['results'])" >> merge_research.py
+          echo "            if 'sources' in batch_data:" >> merge_research.py
+          echo "                all_sources.extend(batch_data['sources'])" >> merge_research.py
+          echo "            if 'key_findings' in batch_data:" >> merge_research.py
+          echo "                all_key_findings.extend(batch_data['key_findings'])" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "# 統合された結果を保存" >> merge_research.py
+          echo "merged_research = {" >> merge_research.py
+          echo "    'results': all_results," >> merge_research.py
+          echo "    'sources': list(set(all_sources)),  # 重複を除去" >> merge_research.py
+          echo "    'key_findings': all_key_findings," >> merge_research.py
+          echo "    'total_queries': len(all_results)," >> merge_research.py
+          echo "    'timestamp': str(datetime.now())" >> merge_research.py
+          echo "}" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "with open('phase2_research.json', 'w') as f:" >> merge_research.py
+          echo "    json.dump(merged_research, f, ensure_ascii=False, indent=2)" >> merge_research.py
+          echo "" >> merge_research.py
+          echo "print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')" >> merge_research.py
           python3 merge_research.py
 
       - name: Upload merged research artifacts
