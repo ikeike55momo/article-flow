@@ -26,8 +26,6 @@ on:
         required: false
         type: boolean
         default: true
-      
-      # Google Drive upload removed
 
 env:
   PYTHON_VERSION: '3.11'
@@ -59,15 +57,13 @@ jobs:
           
           # 入力情報を保存
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          cat > output/${ARTICLE_ID}/input_params.json << EOJSON
-          {
-            "article_id": "${ARTICLE_ID}",
-            "title": "${{ inputs.article_title }}",
-            "target_persona": "${{ inputs.target_persona }}",
-            "meta_keywords": "${{ inputs.meta_keywords }}",
-            "created_at": "${TIMESTAMP}"
-          }
-          EOJSON
+          echo '{' > "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"article_id\": \"${ARTICLE_ID}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"title\": \"${{ inputs.article_title }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"target_persona\": \"${{ inputs.target_persona }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"meta_keywords\": \"${{ inputs.meta_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"created_at\": \"${TIMESTAMP}\"" >> "output/${ARTICLE_ID}/input_params.json"
+          echo '}' >> "output/${ARTICLE_ID}/input_params.json"
 
       - name: Upload initialization artifacts
         uses: actions/upload-artifact@v4
@@ -109,13 +105,11 @@ jobs:
         run: |
           cd output/${{ needs.initialize.outputs.article_id }}
           # Phase1が期待する形式のJSONを作成
-          cat > request_params.json << EOJSON
-          {
-            "topic": "${{ inputs.article_title }}",
-            "target_audience": "${{ inputs.target_persona }}",
-            "keywords": "${{ inputs.meta_keywords }}"
-          }
-          EOJSON
+          echo '{' > request_params.json
+          echo "  \"topic\": \"${{ inputs.article_title }}\"," >> request_params.json
+          echo "  \"target_audience\": \"${{ inputs.target_persona }}\"," >> request_params.json
+          echo "  \"keywords\": \"${{ inputs.meta_keywords }}\"" >> request_params.json
+          echo '}' >> request_params.json
 
       - name: Run Phase 1 Analysis with Claude
         uses: anthropics/claude-code-base-action@beta
