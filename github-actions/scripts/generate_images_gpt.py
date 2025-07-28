@@ -33,7 +33,7 @@ class DallEGenerator:
         self,
         prompt: str,
         size: str = "1024x1024",
-        quality: str = "medium"
+        quality: str = "standard"
     ) -> Dict[str, Any]:
         """Generate image using gpt-image-1 API"""
         
@@ -42,14 +42,13 @@ class DallEGenerator:
             "Content-Type": "application/json"
         }
         
-        # gpt-image-1 parameters (released April 2025)
+        # gpt-image-1 parameters - NO response_format parameter!
         data = {
-            "model": "gpt-image-1",  # Latest multimodal model
+            "model": "gpt-image-1",
             "prompt": prompt,
-            "n": 1,  # Supports 1-10 images
-            "size": size,  # Options: "1024x1024", "1024x1536", "1536x1024", "auto"
-            "quality": quality,  # Options: "low", "medium", "high", "auto"
-            "response_format": "b64_json"  # Get base64 encoded image
+            "n": 1,
+            "size": size,
+            "quality": quality  # "standard" or "hd" only
         }
         
         try:
@@ -62,9 +61,14 @@ class DallEGenerator:
             
             if response.status_code == 200:
                 result = response.json()
-                # Decode base64 image
-                image_data = base64.b64decode(result['data'][0]['b64_json'])
+                
+                # gpt-image-1 returns base64 data, NOT URLs
+                # Access using b64_json from the data array
+                image_b64 = result['data'][0]['b64_json']
                 revised_prompt = result['data'][0].get('revised_prompt', prompt)
+                
+                # Decode base64 to binary image data
+                image_data = base64.b64decode(image_b64)
                 
                 return {
                     "image_data": image_data,
@@ -89,16 +93,19 @@ class DallEGenerator:
     
     def _get_size_for_aspect_ratio(self, aspect_ratio: str) -> str:
         """Convert aspect ratio to gpt-image-1 supported size"""
+        # gpt-image-1 only supports these specific sizes
         size_mapping = {
             "1:1": "1024x1024",
-            "16:9": "1792x1024",
-            "9:16": "1024x1792",
-            "4:3": "1024x1024",  # Default to square
-            "3:4": "1024x1024",  # Default to square
+            "16:9": "1536x1024",  # Wide landscape (closest to 16:9)
+            "9:16": "1024x1536",  # Portrait (closest to 9:16)
+            "4:3": "1024x1024",   # Default to square
+            "3:4": "1024x1024",   # Default to square
             "square": "1024x1024",
-            "landscape": "1792x1024",
-            "portrait": "1024x1792",
-            "wide": "1792x1024"
+            "landscape": "1536x1024",
+            "portrait": "1024x1536",
+            "wide": "1536x1024",
+            "3:2": "1536x1024",   # Landscape
+            "2:3": "1024x1536"    # Portrait
         }
         return size_mapping.get(aspect_ratio, "1024x1024")
 
@@ -349,7 +356,7 @@ def main():
                 "total_requested": len(prompts),
                 "successful": successful,
                 "failed": failed,
-                "generator": "dall-e-3",
+                "generator": "gpt-image-1",
                 "quality": args.quality,
                 "execution_time": elapsed_time
             },
