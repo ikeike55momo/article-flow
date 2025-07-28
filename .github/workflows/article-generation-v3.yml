@@ -37,13 +37,99 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # ジョブ1: 初期化と記事構成の生成
-  initialize-and-structure:
+  # ジョブ1: 初期化
+  initialize:
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 5
+    outputs:
+      article_id: ${{ steps.init.outputs.article_id }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize article generation
+        id: init
+        run: |
+          # タイトルからIDを生成
+          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-50)
+          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_${CLEAN_TITLE}
+          echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
+          echo "Article ID: ${ARTICLE_ID}"
+          
+          # 出力ディレクトリ作成
+          mkdir -p output/${ARTICLE_ID}
+          
+          # 入力情報を保存
+          cat > output/${ARTICLE_ID}/input_params.json << EOF
+          {
+            "article_id": "${ARTICLE_ID}",
+            "title": "${{ inputs.article_title }}",
+            "target_persona": "${{ inputs.target_persona }}",
+            "meta_keywords": "${{ inputs.meta_keywords }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload initialization artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: init-${{ steps.init.outputs.article_id }}
+          path: output/${{ steps.init.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ2: リサーチ（Gemini使用）
+  research:
+    needs: initialize
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
-    outputs:
-      article_id: ${{ steps.init.outputs.article_id }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download initialization artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: init-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd github-actions
+          pip install -r requirements.txt
+
+      - name: Research with Gemini
+        run: |
+          cd github-actions
+          python scripts/phase2_research_gemini.py \
+            --output-dir ../output/${{ needs.initialize.outputs.article_id }} \
+            --title "${{ inputs.article_title }}" \
+            --persona "${{ inputs.target_persona }}" \
+            --keywords "${{ inputs.meta_keywords }}"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Upload research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ3: 記事構成の生成
+  generate-structure:
+    needs: [initialize, research]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
       
     steps:
       - name: Checkout repository
@@ -86,8 +172,10 @@ jobs:
             - メタキーワード: ${{ inputs.meta_keywords }}
             
             タスク:
-            1. input_params.json を読み込んで内容を理解
-            2. ペルソナに最適化された記事構成を作成
+            1. 以下のファイルを読み込んで理解:
+               - input_params.json: 入力パラメータ
+               - research_results.json: リサーチ結果
+            2. リサーチ結果を踏まえてペルソナに最適化された記事構成を作成
             3. 以下のファイルを生成:
                - 01_article_structure.md: 詳細な記事構成
                - 02_content_plan.md: 各セクションの内容計画
@@ -105,20 +193,20 @@ jobs:
             Edit
           
           claude_env: |
-            ARTICLE_ID=${{ steps.init.outputs.article_id }}
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
           max_turns: "10"
 
       - name: Upload structure artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: structure-${{ steps.init.outputs.article_id }}
-          path: output/${{ steps.init.outputs.article_id }}
+          name: structure-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ2: 記事本文の生成
+  # ジョブ4: 記事本文の生成
   generate-content:
-    needs: initialize-and-structure
+    needs: [initialize, generate-structure]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
@@ -127,11 +215,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download structure artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: structure-${{ needs.initialize-and-structure.outputs.article_id }}
-          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
 
       - name: Generate article content with Claude
         uses: anthropics/claude-code-base-action@beta
@@ -170,21 +259,147 @@ jobs:
             Edit
           
           claude_env: |
-            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
           max_turns: "15"
 
       - name: Upload content artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: content-${{ needs.initialize-and-structure.outputs.article_id }}
-          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          name: content-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ3: 画像生成（MCP + Imagen4）
+  # ジョブ5: ファクトチェック
+  factcheck:
+    needs: [initialize, generate-content]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Fact-check article with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事のファクトチェックを行ってください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで内容を確認:
+               - 04_draft_article.md: 記事本文
+               - research_results.json: リサーチ結果
+            
+            2. 以下の観点でチェック:
+               - 事実の正確性（リサーチ結果との照合）
+               - 薬機法・景表法の遵守
+               - 数値や統計の正確性
+               - 医学的・科学的主張の妥当性
+            
+            3. 修正が必要な場合:
+               - 04_draft_article.md を直接編集
+               - factcheck_report.md に修正内容を記録
+            
+            4. ペルソナへの配慮:
+               - ペルソナが誤解しやすい表現の修正
+               - より分かりやすい説明への改善
+          
+          allowed_tools: |
+            View,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
+
+      - name: Upload factcheck artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: factcheck-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ6: SEO最適化
+  seo-optimization:
+    needs: [initialize, factcheck]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: SEO optimization with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事のSEO最適化を行ってください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで最適化:
+               - 04_draft_article.md: 記事本文
+               - 05_article.html: HTML版記事
+               - 03_seo_strategy.md: SEO戦略
+               - input_params.json: メタキーワード確認
+            
+            2. SEO最適化の実施:
+               - タイトルタグの最適化
+               - メタディスクリプションの作成
+               - 見出しタグ（H1-H3）の最適化
+               - キーワード密度の調整（2-3%）
+               - 内部リンク構造の提案
+            
+            3. ペルソナ向けSEO:
+               - ペルソナが使う検索キーワードを意識
+               - ペルソナの検索意図に合致する内容強化
+            
+            4. 生成ファイル:
+               - 06_optimized_content.html: SEO最適化済みHTML
+               - seo_optimization_report.md: 最適化内容レポート
+          
+          allowed_tools: |
+            View,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
+
+      - name: Upload SEO artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ7: 画像生成（MCP + Imagen4）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
-    needs: [initialize-and-structure, generate-content]
+    needs: [initialize, generate-structure, seo-optimization]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
@@ -197,7 +412,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
-          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
 
       - name: Generate Images with Claude + MCP Imagen4
@@ -217,6 +432,8 @@ jobs:
             2. ペルソナに響く画像を生成:
                - ヒーロー画像（16:9）: 記事全体のイメージ
                - セクション画像（4:3）: 主要セクション用（3-4枚）
+               
+               重要: 最適化されたコンテンツ（06_optimized_content.html）を参照
             
             3. 画像生成の方針:
                - ペルソナの年代・性別に合わせたビジュアル
@@ -257,13 +474,13 @@ jobs:
             mcp__gemini-imagen__list_models
           
           claude_env: |
-            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
           max_turns: "15"
 
       - name: Process generated images
         run: |
-          ARTICLE_DIR="output/${{ needs.initialize-and-structure.outputs.article_id }}"
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           IMAGE_DIR="${ARTICLE_DIR}/images"
           
           # MCPサーバーは imagen/ ディレクトリに保存する
@@ -302,13 +519,13 @@ jobs:
         with:
           name: images-${{ needs.initialize-and-structure.outputs.article_id }}
           path: |
-            output/${{ needs.initialize-and-structure.outputs.article_id }}/images
+            output/${{ needs.initialize.outputs.article_id }}/images
             imagen/
           retention-days: 30
 
-  # ジョブ4: 最終処理とアップロード
+  # ジョブ8: 最終処理とアップロード
   finalize:
-    needs: [initialize-and-structure, generate-content, generate-images]
+    needs: [initialize, generate-content, factcheck, seo-optimization, generate-images]
     if: always()
     runs-on: ubuntu-latest
     environment: GA
@@ -322,7 +539,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: '*-${{ needs.initialize-and-structure.outputs.article_id }}'
-          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
 
       - name: Create final package with Claude
@@ -351,7 +568,7 @@ jobs:
             Edit
           
           claude_env: |
-            ARTICLE_ID=${{ needs.initialize-and-structure.outputs.article_id }}
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
           max_turns: "10"
 
@@ -371,7 +588,7 @@ jobs:
         if: ${{ inputs.enable_drive_upload }}
         run: |
           python github-actions/scripts/upload_to_drive.py \
-            --article-dir output/${{ needs.initialize-and-structure.outputs.article_id }} \
+            --article-dir output/${{ needs.initialize.outputs.article_id }} \
             --drive-folder-id ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
         env:
           GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
@@ -379,7 +596,7 @@ jobs:
       - name: Create workflow summary
         if: always()
         run: |
-          ARTICLE_DIR="output/${{ needs.initialize-and-structure.outputs.article_id }}"
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           
           echo "## 📝 Article Generation V3 Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -409,13 +626,13 @@ jobs:
       - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: final-article-${{ needs.initialize-and-structure.outputs.article_id }}
-          path: output/${{ needs.initialize-and-structure.outputs.article_id }}
+          name: final-article-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
   # 通知（オプション）
   notify:
-    needs: [initialize-and-structure, finalize]
+    needs: [initialize, finalize]
     if: always() && vars.SLACK_WEBHOOK != ''
     runs-on: ubuntu-latest
     
