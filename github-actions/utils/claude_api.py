@@ -119,8 +119,15 @@ class ClaudeAPI:
             
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.debug(f"Original response: {response[:500]}..." if len(response) > 500 else f"Original response: {response}")
-            logger.debug(f"Cleaned JSON string: {json_str[:500]}..." if len(json_str) > 500 else f"Cleaned JSON string: {json_str}")
+            logger.error(f"Response length: {len(response)}")
+            logger.error(f"Response preview: {repr(response[:200])}")
+            if 'json_str' in locals():
+                logger.error(f"JSON string preview: {repr(json_str[:200])}")
+            
+            # Also log character codes to debug invisible characters
+            if len(response) > 0:
+                first_chars = [ord(c) for c in response[:10]]
+                logger.error(f"First 10 character codes: {first_chars}")
             
             # Return raw response as fallback
             return {"raw_response": response, "parse_error": str(e)}

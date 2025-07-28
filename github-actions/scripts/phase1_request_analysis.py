@@ -57,7 +57,7 @@ def analyze_request(params: dict, config: Config, claude: ClaudeAPI) -> dict:
     # Get structured analysis from Claude
     analysis = claude.generate_with_structured_output(
         prompt=prompt,
-        system_prompt="You are an expert content strategist specializing in SEO-optimized article planning.",
+        system_prompt="You are an expert content strategist. Return ONLY valid JSON with no additional text, explanations, or formatting. Do not include any markdown code blocks or extra characters.",
         expected_format={
             "main_keyword": "string",
             "related_keywords": ["string"],
@@ -70,7 +70,7 @@ def analyze_request(params: dict, config: Config, claude: ClaudeAPI) -> dict:
             "local_seo_focus": "boolean",
             "estimated_sections": "number"
         },
-        temperature=0.3,
+        temperature=0.1,
         metadata={"phase": "request_analysis"}
     )
     
@@ -154,7 +154,11 @@ def main():
             sys.exit(1)
         
         # Analyze request
+        logger.info("Starting analysis request...")
+        logger.debug(f"Input params: {params}")
         enhanced_params = analyze_request(params, config, claude)
+        logger.debug(f"Analysis result type: {type(enhanced_params.get('analysis'))}")
+        logger.debug(f"Analysis keys: {list(enhanced_params.get('analysis', {}).keys()) if isinstance(enhanced_params.get('analysis'), dict) else 'Not a dict'}")
         
         # Save output
         output_file = Path(args.output_dir) / "phase1_output.json"

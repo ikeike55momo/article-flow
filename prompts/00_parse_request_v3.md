@@ -36,31 +36,22 @@ Gemini検索で使用する具体的なクエリを15-25個生成：
 
 ## 出力形式
 
-必ず以下のJSON形式で出力してください：
+**重要**: 必ず有効なJSONのみを返してください。説明や追加テキストは一切含めないでください。
 
-```json
+以下の構造のJSONを返してください：
+
 {
-  "main_keyword": "メインキーワード",
-  "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
+  "main_keyword": "extracted main keyword",
+  "related_keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
   "search_intent": "informational",
   "content_type": "how-to",
-  "tone": "friendly",
-  "key_points": [
-    "記事で扱うべきポイント1",
-    "記事で扱うべきポイント2",
-    "記事で扱うべきポイント3"
-  ],
-  "research_queries": [
-    "具体的な検索クエリ1",
-    "具体的な検索クエリ2",
-    "具体的な検索クエリ3",
-    "... (最低15個、最大25個)"
-  ],
+  "tone": "friendly", 
+  "key_points": ["point1", "point2", "point3"],
+  "research_queries": ["query1", "query2", "query3", "...minimum 15 queries"],
   "competitor_analysis_needed": true,
   "local_seo_focus": false,
   "estimated_sections": 5
 }
-```
 
 ## 重要な注意事項
 - 健康・美容分野のYMYL要件を考慮

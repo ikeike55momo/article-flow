@@ -121,16 +121,58 @@ jobs:
           }
           EOJSON
 
-      - name: Run Phase 1 Analysis
+      - name: Run Phase 1 Analysis with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事リクエストを分析して、SEO最適化された記事生成のための詳細パラメータを抽出してください。
+            
+            入力情報:
+            - トピック: ${{ inputs.article_title }}  
+            - ターゲット読者: ${{ inputs.target_persona }}
+            - メタキーワード: ${{ inputs.meta_keywords }}
+            
+            タスク:
+            1. request_params.json を読み込んで理解
+            2. 以下の分析を実行:
+               - メインキーワードの特定
+               - 関連キーワードの抽出（5-8個）
+               - 検索意図の分析
+               - リサーチクエリの生成（15-25個）
+            
+            3. 以下のファイルを生成:
+               - phase1_output.json: 分析結果（JSON形式）
+            
+            JSON形式:
+            {
+              "main_keyword": "抽出したメインキーワード",
+              "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
+              "search_intent": "informational",
+              "content_type": "how-to", 
+              "tone": "friendly",
+              "key_points": ["ポイント1", "ポイント2", "ポイント3"],
+              "research_queries": ["クエリ1", "クエリ2", "...最低15個"],
+              "competitor_analysis_needed": true,
+              "local_seo_focus": false,
+              "estimated_sections": 5
+            }
+          
+          allowed_tools: |
+            View,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "5"
+
+      - name: Split research queries into batches
         id: analyze
         run: |
-          cd github-actions
-          python scripts/phase1_request_analysis.py \
-            --params-file ../output/${{ needs.initialize.outputs.article_id }}/request_params.json \
-            --output-dir ../output/${{ needs.initialize.outputs.article_id }}
-          
           # クエリを5バッチに分割
-          cd ../output/${{ needs.initialize.outputs.article_id }}
+          cd output/${{ needs.initialize.outputs.article_id }}
           echo -n "" > split_queries.py
           echo "import json" >> split_queries.py
           echo "import math" >> split_queries.py
