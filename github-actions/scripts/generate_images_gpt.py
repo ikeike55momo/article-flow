@@ -33,7 +33,7 @@ class DallEGenerator:
         self,
         prompt: str,
         size: str = "1024x1024",
-        quality: str = "standard"
+        quality: str = "high"
     ) -> Dict[str, Any]:
         """Generate image using gpt-image-1 API"""
         
@@ -48,7 +48,7 @@ class DallEGenerator:
             "prompt": prompt,
             "n": 1,
             "size": size,
-            "quality": quality  # "standard" or "hd" only
+            "quality": quality  # "low", "medium", "high", or "auto"
         }
         
         try:
@@ -87,7 +87,7 @@ class DallEGenerator:
         except Exception as e:
             raise Exception(f"gpt-image-1 generation failed: {str(e)}")
     
-    def generate(self, prompt: str, size: str = "1024x1024", quality: str = "standard") -> Dict[str, Any]:
+    def generate(self, prompt: str, size: str = "1024x1024", quality: str = "high") -> Dict[str, Any]:
         """Synchronous wrapper for generate_async"""
         return asyncio.run(self.generate_async(prompt, size, quality))
     
@@ -115,7 +115,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Generate images using OpenAI gpt-image-1")
     parser.add_argument("--article-dir", required=True, help="Directory containing article files")
     parser.add_argument("--output-dir", required=True, help="Output directory for images")
-    parser.add_argument("--quality", default="standard", choices=["standard", "hd"], help="Image quality")
+    parser.add_argument("--quality", default="high", choices=["low", "medium", "high", "auto"], help="Image quality")
     parser.add_argument("--log-level", default="INFO", help="Logging level")
     return parser.parse_args()
 
@@ -214,7 +214,7 @@ def generate_single_image(
             "alt_text": prompt_data.get("alt_text", ""),
             "prompt": prompt_data["prompt"],
             "revised_prompt": result.get("revised_prompt", ""),
-            "generator": result.get("generator", "dall-e-3"),
+            "generator": result.get("generator", "gpt-image-1"),
             "created_at": datetime.utcnow().isoformat()
         }
         

@@ -525,7 +525,7 @@ jobs:
             python github-actions/scripts/generate_images_gpt.py \
               --article-dir output/${{ needs.initialize-and-analyze.outputs.article_id }} \
               --output-dir output/${{ needs.initialize-and-analyze.outputs.article_id }}/images \
-              --quality standard
+              --quality high
           # Try Vertex AI Imagen (if allowlisted)
           elif [ -f "/tmp/gcp-key.json" ]; then
             echo "Attempting Vertex AI Imagen..."
