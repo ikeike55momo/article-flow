@@ -128,9 +128,49 @@ jobs:
             --params-file ../output/${{ needs.initialize.outputs.article_id }}/request_params.json \
             --output-dir ../output/${{ needs.initialize.outputs.article_id }}
           
-          # 出力からメインキーワードを取得
-          if [ -f "../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json" ]; then
-            MAIN_KW=$(python -c "import json; data=json.load(open('../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json')); print(data.get('analysis', {}).get('main_keyword', ''))")
+          # クエリを5バッチに分割
+          cd ../output/${{ needs.initialize.outputs.article_id }}
+          python3 -c "
+import json
+import math
+
+# 分析結果を読み込み
+with open('phase1_analysis.json', 'r') as f:
+    data = json.load(f)
+
+queries = data.get('analysis', {}).get('research_queries', [])
+total_queries = len(queries)
+batch_size = math.ceil(total_queries / 5)
+
+# 各バッチのクエリを保存
+for i in range(5):
+    start_idx = i * batch_size
+    end_idx = min((i + 1) * batch_size, total_queries)
+    batch_queries = queries[start_idx:end_idx]
+    
+    batch_data = {
+        'batch_id': i,
+        'queries': batch_queries,
+        'total_batches': 5
+    }
+    
+    with open(f'research_batch_{i}.json', 'w') as f:
+        json.dump(batch_data, f, ensure_ascii=False, indent=2)
+
+# メタ情報を保存
+meta = {
+    'total_queries': total_queries,
+    'batch_count': 5,
+    'batch_size': batch_size,
+    'main_keyword': data.get('analysis', {}).get('main_keyword', '')
+}
+with open('research_meta.json', 'w') as f:
+    json.dump(meta, f, ensure_ascii=False, indent=2)
+"
+          
+          # メインキーワードを出力
+          if [ -f "research_meta.json" ]; then
+            MAIN_KW=$(python -c "import json; print(json.load(open('research_meta.json'))['main_keyword'])")
             echo "main_keyword=${MAIN_KW}" >> $GITHUB_OUTPUT
           fi
         env:
@@ -143,12 +183,16 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ3: リサーチ（Gemini使用）
+  # ジョブ3: リサーチ（Gemini使用 - 並列実行）
   research:
     needs: [initialize, analysis]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
+    strategy:
+      matrix:
+        batch: [0, 1, 2, 3, 4]
+      max-parallel: 5
     
     steps:
       - name: Checkout repository
@@ -170,25 +214,129 @@ jobs:
           cd github-actions
           pip install -r requirements.txt
 
-      - name: Research with Gemini
+      - name: Research with Gemini (Batch ${{ matrix.batch }})
         run: |
-          cd github-actions
+          cd output/${{ needs.initialize.outputs.article_id }}
+          
+          # バッチ用の分析ファイルを作成
+          python3 -c "
+import json
+
+# オリジナルの分析結果を読み込み
+with open('phase1_analysis.json', 'r') as f:
+    original_data = json.load(f)
+
+# このバッチのクエリを読み込み
+with open('research_batch_${{ matrix.batch }}.json', 'r') as f:
+    batch_data = json.load(f)
+
+# バッチ用の分析ファイルを作成
+batch_analysis = original_data.copy()
+batch_analysis['analysis']['research_queries'] = batch_data['queries']
+
+with open('batch_${{ matrix.batch }}_analysis.json', 'w') as f:
+    json.dump(batch_analysis, f, ensure_ascii=False, indent=2)
+"
+          
+          cd ../../github-actions
           python scripts/phase2_research_gemini.py \
-            --params-file ../output/${{ needs.initialize.outputs.article_id }}/phase1_analysis.json \
-            --output-dir ../output/${{ needs.initialize.outputs.article_id }}
+            --params-file ../output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}_analysis.json \
+            --output-dir ../output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Upload research artifacts
+      - name: Upload research batch artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-batch-${{ matrix.batch }}-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}
+          retention-days: 30
+
+  # ジョブ4: リサーチ結果の統合
+  research-merge:
+    needs: [initialize, research]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create output directory
+        run: mkdir -p output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Download all research batches
+        uses: actions/download-artifact@v4
+        with:
+          pattern: research-batch-*-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/batches
+
+      - name: Download analysis artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Merge research results
+        run: |
+          cd output/${{ needs.initialize.outputs.article_id }}
+          
+          # リサーチ結果を統合
+          python3 -c "
+import json
+import os
+from pathlib import Path
+from datetime import datetime
+
+# 全バッチの結果を収集
+all_results = []
+all_sources = []
+all_key_findings = []
+
+# バッチディレクトリを探索
+batch_dirs = sorted(Path('batches').glob('research-batch-*'))
+
+for batch_dir in batch_dirs:
+    # 各バッチのphase2_research.jsonを読み込み
+    research_file = batch_dir / 'phase2_research.json'
+    if research_file.exists():
+        with open(research_file, 'r') as f:
+            batch_data = json.load(f)
+            
+            # 結果を統合
+            if 'results' in batch_data:
+                all_results.extend(batch_data['results'])
+            if 'sources' in batch_data:
+                all_sources.extend(batch_data['sources'])
+            if 'key_findings' in batch_data:
+                all_key_findings.extend(batch_data['key_findings'])
+
+# 統合された結果を保存
+merged_research = {
+    'results': all_results,
+    'sources': list(set(all_sources)),  # 重複を除去
+    'key_findings': all_key_findings,
+    'total_queries': len(all_results),
+    'timestamp': str(datetime.now())
+}
+
+with open('phase2_research.json', 'w') as f:
+    json.dump(merged_research, f, ensure_ascii=False, indent=2)
+
+print(f'Merged {len(batch_dirs)} batches with {len(all_results)} total results')
+"
+
+      - name: Upload merged research artifacts
         uses: actions/upload-artifact@v4
         with:
           name: research-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ4: 記事構成の生成
+  # ジョブ5: 記事構成の生成
   generate-structure:
-    needs: [initialize, analysis, research]
+    needs: [initialize, analysis, research-merge]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
@@ -398,7 +546,7 @@ jobs:
 
   # ジョブ7: SEO最適化
   seo-optimization:
-    needs: [initialize, factcheck]
+    needs: [initialize, generate-content]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 15
@@ -464,7 +612,7 @@ jobs:
   # ジョブ8: 画像生成（MCP + Imagen4）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
-    needs: [initialize, generate-structure, seo-optimization]
+    needs: [initialize, generate-structure]
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
