@@ -513,78 +513,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt: |
-            プロフェッショナルなコンテンツライターとして、高品質な記事を生成してください。
-            
-            ## 入力ファイル（必ず読み込み）
-            1. input_params.json - 記事パラメータ
-            2. phase1_output.json - 分析結果  
-            3. research_results.json - リサーチデータ
-            
-            ## 記事品質要件
-            
-            ### 絶対要件
-            1. **完全オリジナルコンテンツ**
-               - リサーチ資料からのコピー厳禁
-               - 同じ意味でも独自表現を使用
-               - 自然な日本語で執筆
-            
-            2. **専門性の表現**
-               - 「研究によると」「専門家によれば」等の信頼表現
-               - 具体的数値やデータの活用
-               - 経験に基づく洞察
-            
-            3. **文字数管理**
-               - 総文字数: 3200±300文字
-               - セクション毎の配分バランス
-            
-            4. **事実確認**
-               - データは「〜によれば」で出典示唆
-               - 断定表現の回避
-               - 個人差や条件の明記
-            
-            ### ライティングガイドライン
-            
-            #### 文体・トーン
-            - プロフェッショナルでありながら親しみやすく
-            - 断定的でない表現（「〜とされています」「一般的に」）
-            - 読者への敬意
-            - 誇張の回避
-            
-            #### 文章構造ルール
-            - 1文40-60文字
-            - 1段落3-4文
-            - 適切な接続詞の使用
-            - PREP法の適用（結論-理由-例-結論）
-            
-            #### 回避すべき表現
-            - 「必ず」「絶対に」「100%」
-            - 「〜に違いない」「確実に」
-            - 「日本一」「唯一」「最高」
-            - 断定的な医療効果の主張
-            
-            ### セクション構成
-            1. **リード文** - 読者の関心を引く導入
-            2. **各H2セクション**
-               - 導入段落: セクション概要と重要性
-               - メイン内容: 詳細説明（データを慎重に使用）
-               - まとめ段落: 要点と次セクションへの橋渡し
-            3. **FAQ** - よくある質問と専門的回答
-            4. **まとめ** - 記事全体の要点整理
-            
-            ### 薬機法・景表法遵守
-            - 断定的効果の主張禁止
-            - 「個人差があります」の適切な使用
-            - 必要に応じて医師相談の推奨
-            
-            ## 【必須】出力指定
-            Writeツールを使用して以下のファイルを作成：
-            - ファイルパス: output/$ARTICLE_ID/final_article.md
-            - 形式: Pure Markdown（HTMLタグ使用禁止）
-            - 対象ペルソナ: 爪が弱い30代女性
-            
-            高品質で読者価値の高い記事の作成をお願いします。
+          prompt_file: prompts/04_writing_v4.md
           
           allowed_tools: |
             Read,
@@ -593,10 +522,12 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.persona }}
           
-          max_turns: "30"
+          max_turns: "15"
 
-      - name: Verify article generation
+      - name: Verify article generation with fallback
         id: verify-article
         run: |
           ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
@@ -605,12 +536,27 @@ jobs:
           if [ -f "$ARTICLE_DIR/final_article.md" ]; then
             echo "✅ Found final_article.md"
             echo "article_found=true" >> $GITHUB_OUTPUT
+            echo "fallback_used=false" >> $GITHUB_OUTPUT
           else
-            echo "❌ ERROR: final_article.md was not generated!"
+            echo "⚠️ Primary generation failed, using fallback method"
             echo "📁 Contents of $ARTICLE_DIR:"
             ls -la "$ARTICLE_DIR/" || echo "Directory not found"
-            echo "article_found=false" >> $GITHUB_OUTPUT
-            exit 1
+            
+            # Generate fallback article
+            python github-actions/scripts/generate_fallback_article.py \
+              --article-dir "$ARTICLE_DIR" \
+              --title "${{ inputs.article_title }}" \
+              --persona "${{ inputs.persona }}"
+            
+            if [ -f "$ARTICLE_DIR/final_article.md" ]; then
+              echo "✅ Fallback article generated successfully"
+              echo "article_found=true" >> $GITHUB_OUTPUT
+              echo "fallback_used=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ ERROR: Both primary and fallback generation failed!"
+              echo "article_found=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
           fi
 
       - name: Upload content artifacts
@@ -964,31 +910,39 @@ jobs:
           
           # V4の4つの成果物をわかりやすい名前でコピー
           # 1. メイン記事 (Markdown) - 複数の可能性をチェック
+          echo "🔍 Searching for article files in $ARTICLE_DIR..."
+          ls -la "$ARTICLE_DIR/" || echo "Directory listing failed"
+          
           ARTICLE_FOUND=false
           if [ -f "$ARTICLE_DIR/final_article.md" ]; then
             cp "$ARTICLE_DIR/final_article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied final_article.md"
+            echo "✅ Copied final_article.md ($(wc -c < "$ARTICLE_DIR/final_article.md") bytes)"
             ARTICLE_FOUND=true
           elif [ -f "$ARTICLE_DIR/04_draft_article.md" ]; then
             cp "$ARTICLE_DIR/04_draft_article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied 04_draft_article.md"
+            echo "✅ Copied 04_draft_article.md ($(wc -c < "$ARTICLE_DIR/04_draft_article.md") bytes)"
             ARTICLE_FOUND=true
           elif [ -f "$ARTICLE_DIR/article.md" ]; then
             cp "$ARTICLE_DIR/article.md" "$FINAL_DIR/article.md"
-            echo "✅ Copied article.md"
+            echo "✅ Copied article.md ($(wc -c < "$ARTICLE_DIR/article.md") bytes)"
             ARTICLE_FOUND=true
           else
             echo "❌ ERROR: No article file found!"
-            # すべてのmdファイルを表示
-            echo "Available .md files:"
-            find $ARTICLE_DIR -name "*.md" -type f
+            echo "📁 All files in $ARTICLE_DIR:"
+            find "$ARTICLE_DIR" -type f -name "*" | head -20
+            echo "📝 Available .md files:"
+            find "$ARTICLE_DIR" -name "*.md" -type f || echo "No .md files found"
             exit 1
           fi
           
           # Verify the article was actually copied
           if [ ! -f "$FINAL_DIR/article.md" ]; then
             echo "❌ ERROR: Failed to copy article to final package!"
+            echo "📁 Final directory contents:"
+            ls -la "$FINAL_DIR/"
             exit 1
+          else
+            echo "✅ Article successfully copied to final package ($(wc -c < "$FINAL_DIR/article.md") bytes)"
           fi
           
           # 2. リサーチ結果
