@@ -264,6 +264,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Setup Node.js for Gemini CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install Gemini CLI
+        run: |
+          npm install -g @google/generative-ai-cli
+
       - name: Install dependencies
         run: |
           cd github-actions
