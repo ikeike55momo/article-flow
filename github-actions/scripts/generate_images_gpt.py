@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Image Generation using OpenAI DALL-E 3 API"""
+"""Image Generation using OpenAI gpt-image-1 API"""
 
 import argparse
 import sys
@@ -76,19 +76,19 @@ class DallEGenerator:
                 }
             else:
                 error_msg = response.json().get('error', {}).get('message', response.text)
-                raise Exception(f"DALL-E API Error {response.status_code}: {error_msg}")
+                raise Exception(f"gpt-image-1 API Error {response.status_code}: {error_msg}")
                 
         except requests.exceptions.Timeout:
-            raise Exception("DALL-E API request timed out after 120 seconds")
+            raise Exception("gpt-image-1 API request timed out after 120 seconds")
         except Exception as e:
-            raise Exception(f"DALL-E generation failed: {str(e)}")
+            raise Exception(f"gpt-image-1 generation failed: {str(e)}")
     
     def generate(self, prompt: str, size: str = "1024x1024", quality: str = "standard") -> Dict[str, Any]:
         """Synchronous wrapper for generate_async"""
         return asyncio.run(self.generate_async(prompt, size, quality))
     
     def _get_size_for_aspect_ratio(self, aspect_ratio: str) -> str:
-        """Convert aspect ratio to DALL-E supported size"""
+        """Convert aspect ratio to gpt-image-1 supported size"""
         size_mapping = {
             "1:1": "1024x1024",
             "16:9": "1792x1024",
@@ -105,7 +105,7 @@ class DallEGenerator:
 
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="Generate images using OpenAI DALL-E 3")
+    parser = argparse.ArgumentParser(description="Generate images using OpenAI gpt-image-1")
     parser.add_argument("--article-dir", required=True, help="Directory containing article files")
     parser.add_argument("--output-dir", required=True, help="Output directory for images")
     parser.add_argument("--quality", default="standard", choices=["standard", "hd"], help="Image quality")
@@ -126,7 +126,7 @@ def create_image_prompts(structure: dict, article_content: str) -> List[Dict[str
         article_topic = "health and wellness"
         main_keyword = "health"
     
-    # DALL-E 3 works best with detailed, specific prompts
+    # gpt-image-1 works best with detailed, specific prompts
     hero_prompt = f"""
     Create a professional hero image for a health and beauty article about {article_topic}.
     The image should have a modern, clean, minimalist design with soft pastel colors.
@@ -176,9 +176,9 @@ def generate_single_image(
     """Generate a single image"""
     
     try:
-        logger.info(f"Generating {prompt_data['type']} image with DALL-E 3...")
+        logger.info(f"Generating {prompt_data['type']} image with gpt-image-1...")
         
-        # Convert aspect ratio to DALL-E size
+        # Convert aspect ratio to gpt-image-1 size
         size = generator._get_size_for_aspect_ratio(prompt_data["aspect_ratio"])
         
         # Generate image
@@ -253,8 +253,8 @@ def main():
     args = parse_arguments()
     
     # Setup logging
-    logger = setup_logging("image_generation_dalle", args.log_level)
-    log_phase_start(logger, "Image Generation (DALL-E 3)")
+    logger = setup_logging("image_generation_gpt", args.log_level)
+    log_phase_start(logger, "Image Generation (gpt-image-1)")
     
     try:
         # Check API key
@@ -262,7 +262,7 @@ def main():
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment")
         
-        logger.info(f"Using DALL-E 3 for image generation")
+        logger.info(f"Using gpt-image-1 for image generation")
         logger.info(f"Quality setting: {args.quality}")
         
         # Read input files from article directory
@@ -331,7 +331,7 @@ def main():
             )
             results.append(result)
             
-            # Rate limiting - DALL-E 3 has rate limits
+            # Rate limiting - gpt-image-1 has rate limits
             if i < len(prompts) - 1:
                 logger.info("Waiting 12 seconds for rate limiting...")
                 time.sleep(12)  # Be conservative with rate limits
@@ -368,11 +368,11 @@ def main():
         
         logger.info(f"Image generation completed: {successful}/{len(prompts)} images")
         
-        log_phase_end(logger, "Image Generation (DALL-E 3)", success=True)
+        log_phase_end(logger, "Image Generation (gpt-image-1)", success=True)
         
     except Exception as e:
-        log_error(logger, e, "Image Generation (DALL-E 3)")
-        log_phase_end(logger, "Image Generation (DALL-E 3)", success=False)
+        log_error(logger, e, "Image Generation (gpt-image-1)")
+        log_phase_end(logger, "Image Generation (gpt-image-1)", success=False)
         sys.exit(1)
 
 
