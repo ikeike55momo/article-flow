@@ -135,7 +135,7 @@ sudo apt-get install -y nodejs
    image_settings:
      width: 512
      height: 512
-     quality: "standard"
+     quality: "high"
    ```
 
 2. **画像キャッシュの活用**

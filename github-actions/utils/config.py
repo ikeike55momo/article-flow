@@ -71,23 +71,40 @@ def get_env_var(name: str, default: Optional[str] = None, required: bool = False
 
 def get_api_keys() -> Dict[str, str]:
     """Get all required API keys"""
-    return {
+    # V3では必須APIキーが異なる
+    is_v3 = os.environ.get("ENABLE_GEMINI_RESEARCH") == "true"
+    
+    keys = {
         "anthropic": get_env_var("ANTHROPIC_API_KEY", required=True),
-        "openai": get_env_var("OPENAI_API_KEY", required=True),
-        "bing_search": get_env_var("BING_SEARCH_KEY", required=True),
         "google_drive": get_env_var("GOOGLE_DRIVE_CREDENTIALS"),
-        "stability": get_env_var("STABILITY_API_KEY"),
         "slack_webhook": get_env_var("SLACK_WEBHOOK")
     }
+    
+    if is_v3:
+        # V3: Gemini APIを使用
+        keys["gemini"] = get_env_var("GEMINI_API_KEY", required=True)
+    else:
+        # V2: OpenAI と Bing を使用
+        keys["openai"] = get_env_var("OPENAI_API_KEY", required=True)
+        keys["bing_search"] = get_env_var("BING_SEARCH_KEY", required=True)
+        keys["stability"] = get_env_var("STABILITY_API_KEY")
+    
+    return keys
 
 
 def validate_environment():
     """Validate that all required environment variables are set"""
+    # V3では ANTHROPIC_API_KEY のみ必須
+    # リサーチは Gemini API を使用
     required_vars = [
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY", 
-        "BING_SEARCH_KEY"
+        "ANTHROPIC_API_KEY"
     ]
+    
+    # 実行中のワークフローに応じて追加の環境変数をチェック
+    if os.environ.get("WORKFLOW_VERSION") == "v2":
+        required_vars.extend(["OPENAI_API_KEY", "BING_SEARCH_KEY"])
+    elif os.environ.get("ENABLE_GEMINI_RESEARCH") == "true":
+        required_vars.append("GEMINI_API_KEY")
     
     missing = []
     for var in required_vars:
