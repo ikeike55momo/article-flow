@@ -6,6 +6,7 @@
 - ARTICLE_ID: {{ARTICLE_ID}}
 - TITLE: {{TITLE}}
 - TARGET_PERSONA: {{TARGET_PERSONA}}
+- WORD_COUNT: {{WORD_COUNT}}
 
 ## Input Files
 Read the following files from the article directory:
@@ -27,8 +28,12 @@ Read the following files from the article directory:
    - 経験に基づく洞察の提供
 
 3. **厳密な文字数管理**
-   - 総文字数: 3200±300文字
+   - 総文字数: ${WORD_COUNT}±300文字（デフォルト: 3200文字）
    - セクション毎の適切な配分
+   - リード文: 10-15%（320-480文字）
+   - 各H2セクション: 20-25%（640-800文字）
+   - FAQ: 15-20%（480-640文字）
+   - まとめ: 5-10%（160-320文字）
 
 4. **事実の正確性**
    - データは「〜によれば」で出典示唆
@@ -62,13 +67,13 @@ Read the following files from the article directory:
 - 断定的な医療効果の主張
 
 ## Section Structure
-1. **リード文** - 読者の関心を引く導入（300-400文字）
-2. **H2セクション** - 3-4セクション構成
-   - 導入段落: セクション概要と重要性
-   - メイン内容: 詳細説明（データを慎重に使用）
-   - まとめ段落: 要点と次セクションへの橋渡し
-3. **FAQ** - 3-5個の実用的な質問と回答
-4. **まとめ** - 記事全体の要点整理（200-300文字）
+1. **リード文** - 読者の関心を引く導入（${WORD_COUNT}の10-15%）
+2. **H2セクション** - 3-4セクション構成（各セクション${WORD_COUNT}の20-25%）
+   - 導入段落: セクション概要と重要性（100-150文字）
+   - メイン内容: 詳細説明（データを慎重に使用）（400-500文字）
+   - まとめ段落: 要点と次セクションへの橋渡し（100-150文字）
+3. **FAQ** - 3-5個の実用的な質問と回答（${WORD_COUNT}の15-20%）
+4. **まとめ** - 記事全体の要点整理（${WORD_COUNT}の5-10%）
 
 ## Medical/Health Disclaimers
 - 薬機法・景表法遵守
@@ -78,7 +83,8 @@ Read the following files from the article directory:
 
 ## Quality Check Items
 - [ ] 100% オリジナリティ
-- [ ] 指定文字数の遵守
+- [ ] 指定文字数の厳密な遵守（${WORD_COUNT}±300文字）
+- [ ] 各セクションの文字数バランス確認
 - [ ] 自然なキーワード配置
 - [ ] 論理的な流れ
 - [ ] 読者価値の提供

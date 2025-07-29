@@ -21,6 +21,12 @@ on:
         type: string
         default: ''
       
+      word_count:
+        description: '目標文字数'
+        required: false
+        type: string
+        default: '3200'
+      
       enable_image_generation:
         description: '画像生成を有効にする'
         required: false
@@ -64,6 +70,7 @@ jobs:
           echo "  \"title\": \"${{ inputs.article_title }}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"target_persona\": \"${{ inputs.target_persona }}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"meta_keywords\": \"${{ inputs.meta_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"word_count\": \"${{ inputs.word_count }}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"created_at\": \"${TIMESTAMP}\"" >> "output/${ARTICLE_ID}/input_params.json"
           echo '}' >> "output/${ARTICLE_ID}/input_params.json"
 
@@ -427,7 +434,8 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.persona }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "15"
 
