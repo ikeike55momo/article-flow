@@ -545,7 +545,8 @@ jobs:
                - ペルソナが誤解しやすい表現の修正
                - より分かりやすい説明への改善
             
-            【重要】必ずWriteツールを使用してfactcheck_report.jsonを作成してください。
+            【重要】必ずWriteツールを使用して output/${ARTICLE_ID}/factcheck_report.json を作成してください。
+            ファイルパスは完全パスで指定してください。
           
           allowed_tools: |
             Read,
@@ -633,7 +634,8 @@ jobs:
                - ペルソナの検索意図を考慮
                - 競合と差別化できる表現
             
-            【重要】必ずWriteツールを使用してseo_metadata.jsonを作成してください。
+            【重要】必ずWriteツールを使用して output/${ARTICLE_ID}/seo_metadata.json を作成してください。
+            ファイルパスは完全パスで指定してください。
           
           allowed_tools: |
             Read,
