@@ -6,7 +6,7 @@ import math
 import sys
 
 def main():
-    """Split research queries into 5 batches"""
+    """Split research queries into 3 batches to avoid rate limiting"""
     try:
         # 分析結果を読み込み
         with open('phase1_output.json', 'r') as f:
@@ -14,12 +14,13 @@ def main():
         
         queries = data.get('analysis', {}).get('research_queries', [])
         total_queries = len(queries)
-        batch_size = math.ceil(total_queries / 5)
+        num_batches = 3  # Reduced from 5 to 3 to match max-parallel
+        batch_size = math.ceil(total_queries / num_batches)
         
-        print(f"Total queries: {total_queries}, Batch size: {batch_size}")
+        print(f"Total queries: {total_queries}, Batch size: {batch_size}, Batches: {num_batches}")
         
         # 各バッチのクエリを保存
-        for i in range(5):
+        for i in range(num_batches):
             start_idx = i * batch_size
             end_idx = min((i + 1) * batch_size, total_queries)
             batch_queries = queries[start_idx:end_idx]
@@ -27,7 +28,7 @@ def main():
             batch_data = {
                 'batch_id': i,
                 'queries': batch_queries,
-                'total_batches': 5
+                'total_batches': num_batches
             }
             
             with open(f'research_batch_{i}.json', 'w') as f:
@@ -38,7 +39,7 @@ def main():
         # メタ情報を保存
         meta = {
             'total_queries': total_queries,
-            'batch_count': 5,
+            'batch_count': num_batches,
             'batch_size': batch_size,
             'main_keyword': data.get('analysis', {}).get('main_keyword', '')
         }
