@@ -1,0 +1,69 @@
+name: Test SEO Metadata Only
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-seo:
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test environment
+        run: |
+          TEST_ID="test-seo-$(date +%Y%m%d%H%M%S)"
+          mkdir -p output/$TEST_ID
+          
+          # シンプルな記事を作成
+          cat > output/$TEST_ID/article.md << 'EOF'
+          # テスト記事
+          これはテスト記事です。
+          EOF
+          
+          # 入力パラメータを作成
+          cat > output/$TEST_ID/params.json << 'EOF'
+          {
+            "title": "テスト記事",
+            "keywords": "テスト,記事"
+          }
+          EOF
+          
+          echo "TEST_ID=$TEST_ID" >> $GITHUB_ENV
+          echo "✅ Test environment created"
+
+      - name: Test SEO Generation - Direct Write
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            Writeツールを使用して output/${{ env.TEST_ID }}/seo_metadata.json を作成してください。
+            
+            内容:
+            ```json
+            {
+              "title": "テスト記事",
+              "meta_description": "これはテスト記事です",
+              "created_at": "2025-01-29"
+            }
+            ```
+          
+          allowed_tools: |
+            Write
+          
+          max_turns: "3"
+
+      - name: Check SEO output
+        run: |
+          echo "Checking SEO file..."
+          if [ -f "output/${{ env.TEST_ID }}/seo_metadata.json" ]; then
+            echo "✅ SEO metadata created!"
+            cat output/${{ env.TEST_ID }}/seo_metadata.json
+          else
+            echo "❌ SEO metadata NOT created"
+            ls -la output/${{ env.TEST_ID }}/
+          fi
