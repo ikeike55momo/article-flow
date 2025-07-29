@@ -103,26 +103,38 @@ def main():
         prompt = f"""
 Web検索を実行: "{query}"
 
+重要な指示：
+- 実際のウェブサイトのURL（ドメイン名を含む）を提供してください
+- リダイレクトURLではなく、元のソースのURLを記載してください
+- 一次情報（政府機関、学術機関）を最優先してください
+
 優先順位：
-1. 政府機関（.go.jp, .gov）
-2. 学術機関（.ac.jp, .edu）  
-3. 医学会・専門団体
-4. 大手メディア
+1. 政府機関（.go.jp, .gov） - 厚生労働省、消費者庁、政府データベース等
+2. 学術機関（.ac.jp, .edu） - 大学、研究機関、学術論文等  
+3. 医学会・専門団体 - 日本皮膚科学会、医師会等
+4. 大手メディア - 信頼できる健康メディア
 
 以下の形式でJSONで返してください：
 {{
   "query": "{query}",
   "results": [
     {{
-      "url": "URL",
+      "url": "実際のウェブサイトURL（例: https://www.mhlw.go.jp/...）",
+      "domain": "ドメイン名（例: mhlw.go.jp）",
       "title": "タイトル", 
       "source_type": "government/academic/medical/industry/media",
       "reliability_score": 1-10,
-      "key_findings": ["重要な発見"],
-      "publication_date": "YYYY-MM-DD"
+      "key_findings": ["重要な発見、具体的なデータや統計を含む"],
+      "publication_date": "YYYY-MM-DD",
+      "author": "著者名や組織名（わかる場合）"
     }}
   ]
 }}
+
+注意：
+- vertexaisearch.cloud.google.comのリダイレクトURLは使用しないでください
+- 実際の情報源のURLを提供してください
+- 政府・学術機関の情報を優先的に検索してください
 """
         
         try:
