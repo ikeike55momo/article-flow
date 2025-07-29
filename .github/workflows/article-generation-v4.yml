@@ -233,7 +233,7 @@ jobs:
     strategy:
       matrix:
         batch: [0, 1, 2, 3, 4]
-      max-parallel: 5
+      max-parallel: 3  # Balanced for rate limiting with gemini-2.5-flash
     
     steps:
       - name: Checkout repository

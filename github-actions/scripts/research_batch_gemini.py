@@ -4,6 +4,7 @@
 import os
 import sys
 import json
+import time
 import traceback
 from google import genai
 from google.genai import types
@@ -14,8 +15,11 @@ def test_api_connection(client):
     print("\n🧪 Testing API connection...")
     try:
         # Simple test without search tool
+        # Get model name from environment
+        model_name = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+        
         test_response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model=model_name,
             contents="Return a simple JSON: {\"status\": \"ok\", \"message\": \"API working\"}"
         )
         
@@ -34,7 +38,7 @@ def test_api_connection(client):
         )
         
         search_response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model=model_name,
             contents="Search for 'test query' and return a simple JSON with one result",
             config=config
         )
@@ -65,6 +69,10 @@ def main():
     # Configure the client
     client = genai.Client(api_key=api_key)
     
+    # Get model name from environment or use default
+    model_name = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+    print(f"🤖 Using model: {model_name}")
+    
     # Test API connection
     if not test_api_connection(client):
         print("❌ Exiting due to API connection failure")
@@ -85,6 +93,12 @@ def main():
     
     for i, query in enumerate(queries):
         print(f"Searching batch {batch_num} ({i+1}/{len(queries)}): {query}")
+        
+        # Add delay between requests to avoid rate limiting
+        if i > 0:
+            delay = 8  # 8 seconds as suggested by the API error
+            print(f"⏱️ Waiting {delay} seconds to avoid rate limit...")
+            time.sleep(delay)
         
         prompt = f"""
 Web検索を実行: "{query}"
@@ -126,7 +140,7 @@ Web検索を実行: "{query}"
             
             # Make the request
             response = client.models.generate_content(
-                model="gemini-2.0-flash-exp",
+                model=model_name,
                 contents=prompt,
                 config=config
             )
@@ -239,6 +253,22 @@ Web検索を実行: "{query}"
             print(f"\n❌ Error searching '{query}':")
             print(f"Error type: {type(e).__name__}")
             print(f"Error message: {str(e)}")
+            
+            # Check if it's a rate limit error
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("⚠️ Rate limit exceeded. Consider:")
+                print("   1. Using a model with higher quota")
+                print("   2. Reducing parallel execution")
+                print("   3. Adding longer delays between requests")
+                
+                # Try to extract retry delay from error
+                if "retryDelay" in str(e):
+                    import re
+                    match = re.search(r"retryDelay.*?(\d+)s", str(e))
+                    if match:
+                        retry_delay = int(match.group(1))
+                        print(f"   Suggested retry delay: {retry_delay} seconds")
+            
             print(f"Full traceback:\n{traceback.format_exc()}")
     
     # バッチ結果を保存
