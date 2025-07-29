@@ -506,8 +506,8 @@ jobs:
             
             タスク:
             1. 以下のファイルを読み込んで内容を確認:
-               - final_article.md: 記事本文
-               - research_results.json: リサーチ結果
+               - output/${ARTICLE_ID}/final_article.md: 記事本文
+               - output/${ARTICLE_ID}/research_results.json: リサーチ結果
             
             2. 以下の観点でチェック:
                - 事実の正確性（リサーチ結果との照合）
@@ -544,6 +544,8 @@ jobs:
             5. ペルソナへの配慮:
                - ペルソナが誤解しやすい表現の修正
                - より分かりやすい説明への改善
+            
+            【重要】必ずWriteツールを使用してfactcheck_report.jsonを作成してください。
           
           allowed_tools: |
             Read,
@@ -554,6 +556,18 @@ jobs:
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
           max_turns: "10"
+
+      - name: Verify factcheck output
+        run: |
+          echo "🔍 Checking factcheck output..."
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json" ]; then
+            echo "✅ factcheck_report.json created successfully"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json
+          else
+            echo "❌ factcheck_report.json NOT found!"
+            echo "📁 Contents of output directory:"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
+          fi
 
       - name: Upload factcheck artifacts
         uses: actions/upload-artifact@v4
@@ -590,9 +604,9 @@ jobs:
             
             タスク:
             1. 以下のファイルを読み込んで内容を理解:
-               - final_article.md: 記事本文
-               - input_params.json: 入力パラメータ（メタキーワード含む）
-               - phase1_output.json: 分析結果
+               - output/${ARTICLE_ID}/final_article.md: 記事本文
+               - output/${ARTICLE_ID}/input_params.json: 入力パラメータ（メタキーワード含む）
+               - output/${ARTICLE_ID}/phase1_output.json: 分析結果
             
             2. output/${ARTICLE_ID}/seo_metadata.json として以下の形式で保存:
                {
@@ -618,6 +632,8 @@ jobs:
                - キーワードは自然に配置
                - ペルソナの検索意図を考慮
                - 競合と差別化できる表現
+            
+            【重要】必ずWriteツールを使用してseo_metadata.jsonを作成してください。
           
           allowed_tools: |
             Read,
@@ -628,6 +644,18 @@ jobs:
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "5"
+
+      - name: Verify SEO metadata output
+        run: |
+          echo "🔍 Checking SEO metadata output..."
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json" ]; then
+            echo "✅ seo_metadata.json created successfully"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json
+          else
+            echo "❌ seo_metadata.json NOT found!"
+            echo "📁 Contents of output directory:"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
+          fi
 
       - name: Upload SEO metadata artifacts
         uses: actions/upload-artifact@v4
@@ -886,6 +914,13 @@ jobs:
           ls -la
           
           echo ""
+          echo "🔍 Specifically looking for factcheck and SEO files:"
+          echo "Factcheck files:"
+          find . -name "*factcheck*" -type f 2>/dev/null || echo "No factcheck files found"
+          echo "SEO files:"
+          find . -name "*seo*" -type f 2>/dev/null || echo "No SEO files found"
+          
+          echo ""
           echo "🔍 Output directory contents:"
           if [ -d "output/" ]; then
             find output/ -type f | head -20
@@ -990,6 +1025,8 @@ jobs:
           
           if [ "$SEO_FOUND" = false ]; then
             echo "⚠️ No SEO metadata found"
+            echo "📁 Searching for SEO metadata files..."
+            find . -name "*seo*.json" -type f 2>/dev/null | head -10
           fi
           
           # 4. ファクトチェック品質レポート - 複数の場所から検索
@@ -1017,6 +1054,8 @@ jobs:
               echo "✅ Using factcheck file: $FACTCHECK_FILE"
             else
               echo "⚠️ No factcheck report found"
+              echo "📁 Searching for factcheck files..."
+              find . -name "*factcheck*.json" -type f 2>/dev/null | head -10
             fi
           fi
           

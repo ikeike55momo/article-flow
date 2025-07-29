@@ -1,0 +1,306 @@
+name: Article Generation V4 Test (Factcheck & SEO)
+
+on:
+  workflow_dispatch:
+    inputs:
+      article_title:
+        description: '記事タイトル'
+        required: true
+        type: string
+        default: 'テスト記事：爪のケア方法'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # テスト用の簡易ジョブ
+  test-factcheck-seo:
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        run: |
+          # テスト用のディレクトリ構造を作成
+          TEST_ID="test-$(date +%Y%m%d%H%M%S)"
+          mkdir -p output/$TEST_ID
+          
+          # テスト用の記事を作成
+          cat > output/$TEST_ID/final_article.md << 'EOF'
+          # 爪が薄い・割れやすい悩みを解決する専門ケアとは？
+
+          爪の健康は多くの方にとって重要な関心事です。この記事では、専門的な観点から実践的なケア方法について解説いたします。
+
+          ## 爪が薄くなる原因
+
+          研究によると、爪が薄くなる主な原因は以下の通りです：
+
+          1. **栄養不足** - 特にタンパク質、ビオチン、鉄分の不足
+          2. **外的要因** - 過度な水仕事、洗剤の使用
+          3. **加齢** - 年齢とともに爪の成長が遅くなる
+
+          ## 効果的なケア方法
+
+          ### 栄養補給
+          - タンパク質を1日50g以上摂取
+          - ビオチンサプリメントの活用（1日30μg）
+          - 鉄分豊富な食材の摂取
+
+          ### 外的ケア
+          - ネイルオイルでの保湿（1日2回）
+          - ゴム手袋の使用
+          - 爪切りではなくやすりの使用
+
+          ## まとめ
+
+          爪の健康は日々のケアの積み重ねが大切です。栄養と保湿を中心としたケアを継続することで、健康的な爪を維持できます。
+          EOF
+
+          # テスト用のリサーチ結果を作成
+          cat > output/$TEST_ID/research_results.json << 'EOF'
+          {
+            "results": [
+              {
+                "query": "爪 薄い 原因",
+                "results": [
+                  {
+                    "url": "https://www.mhlw.go.jp/example",
+                    "title": "爪の健康に関する調査",
+                    "source_type": "government",
+                    "reliability_score": 9,
+                    "key_findings": ["タンパク質不足が主要因", "ビオチン摂取の重要性"]
+                  }
+                ]
+              }
+            ],
+            "high_reliability_sources": [
+              {
+                "url": "https://www.mhlw.go.jp/example",
+                "source_type": "government",
+                "reliability_score": 9
+              }
+            ]
+          }
+          EOF
+
+          # テスト用の入力パラメータを作成
+          cat > output/$TEST_ID/input_params.json << 'EOF'
+          {
+            "article_title": "爪が薄い・割れやすい悩みを解決する専門ケアとは？",
+            "target_persona": "30代女性、健康意識が高い",
+            "meta_keywords": "爪 薄い,爪 割れやすい,爪 ケア,ネイルケア",
+            "word_count": "3200"
+          }
+          EOF
+
+          # テスト用の分析結果を作成
+          cat > output/$TEST_ID/phase1_output.json << 'EOF'
+          {
+            "analysis": {
+              "main_keyword": "爪 薄い",
+              "search_intent": "爪が薄い原因と改善方法を知りたい"
+            }
+          }
+          EOF
+
+          echo "TEST_ID=$TEST_ID" >> $GITHUB_ENV
+          echo "✅ Test environment created with ID: $TEST_ID"
+
+      # Factcheckジョブのテスト
+      - name: Test Factcheck Generation
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事のファクトチェックを行い、品質スコアを算出してください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで内容を確認:
+               - output/${{ env.TEST_ID }}/final_article.md: 記事本文
+               - output/${{ env.TEST_ID }}/research_results.json: リサーチ結果
+            
+            2. 以下の観点でチェック:
+               - 事実の正確性（リサーチ結果との照合）
+               - 薬機法・景表法の遵守
+               - 数値や統計の正確性
+               - 医学的・科学的主張の妥当性
+            
+            3. 修正が必要な場合:
+               - final_article.md を直接編集
+            
+            4. 品質レポートを作成:
+               - output/${{ env.TEST_ID }}/factcheck_report.json として以下の形式で保存:
+               {
+                 "overall_quality_score": 85,
+                 "fact_accuracy_score": 90,
+                 "legal_compliance_score": 95,
+                 "scientific_validity_score": 80,
+                 "source_reliability_score": 85,
+                 "issues_found": [
+                   {
+                     "type": "fact_error",
+                     "description": "問題の説明",
+                     "location": "記事内の場所",
+                     "severity": "high/medium/low",
+                     "corrected": true/false
+                   }
+                 ],
+                 "recommendations": ["改善提案1", "改善提案2"],
+                 "timestamp": "現在時刻",
+                 "total_issues": 3,
+                 "corrected_issues": 2
+               }
+            
+            5. ペルソナへの配慮:
+               - ペルソナが誤解しやすい表現の修正
+               - より分かりやすい説明への改善
+            
+            【重要】必ずWriteツールを使用してfactcheck_report.jsonを作成してください。
+          
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ env.TEST_ID }}
+          
+          max_turns: "10"
+
+      - name: Verify Factcheck Output
+        run: |
+          echo "🔍 Checking factcheck output..."
+          if [ -f "output/${{ env.TEST_ID }}/factcheck_report.json" ]; then
+            echo "✅ factcheck_report.json created successfully"
+            echo "📄 Content:"
+            cat output/${{ env.TEST_ID }}/factcheck_report.json | jq '.' || cat output/${{ env.TEST_ID }}/factcheck_report.json
+          else
+            echo "❌ factcheck_report.json NOT found!"
+            echo "📁 Contents of test directory:"
+            ls -la output/${{ env.TEST_ID }}/
+          fi
+
+      # SEOメタジョブのテスト
+      - name: Test SEO Metadata Generation
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事のSEOメタ情報を生成してください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで内容を理解:
+               - output/${{ env.TEST_ID }}/final_article.md: 記事本文
+               - output/${{ env.TEST_ID }}/input_params.json: 入力パラメータ（メタキーワード含む）
+               - output/${{ env.TEST_ID }}/phase1_output.json: 分析結果
+            
+            2. output/${{ env.TEST_ID }}/seo_metadata.json として以下の形式で保存:
+               {
+                 "title": "記事タイトル（60文字以内）",
+                 "meta_description": "記事の要約（120-160文字）",
+                 "meta_keywords": ["キーワード1", "キーワード2", ...],
+                 "og_title": "OGP用タイトル",
+                 "og_description": "OGP用説明文",
+                 "focus_keyword": "メインキーワード",
+                 "secondary_keywords": ["サブキーワード1", "サブキーワード2"],
+                 "keyword_density": {
+                   "メインキーワード": 2.5,
+                   "サブキーワード1": 1.2
+                 },
+                 "schema_type": "Article",
+                 "estimated_reading_time": "5分",
+                 "word_count": 3200,
+                 "created_at": "現在時刻"
+               }
+            
+            3. SEO最適化のポイント:
+               - メタディスクリプションは検索結果で表示される重要な要素
+               - キーワードは自然に配置
+               - ペルソナの検索意図を考慮
+               - 競合と差別化できる表現
+            
+            【重要】必ずWriteツールを使用してseo_metadata.jsonを作成してください。
+          
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ env.TEST_ID }}
+            WORD_COUNT=3200
+          
+          max_turns: "5"
+
+      - name: Verify SEO Metadata Output
+        run: |
+          echo "🔍 Checking SEO metadata output..."
+          if [ -f "output/${{ env.TEST_ID }}/seo_metadata.json" ]; then
+            echo "✅ seo_metadata.json created successfully"
+            echo "📄 Content:"
+            cat output/${{ env.TEST_ID }}/seo_metadata.json | jq '.' || cat output/${{ env.TEST_ID }}/seo_metadata.json
+          else
+            echo "❌ seo_metadata.json NOT found!"
+            echo "📁 Contents of test directory:"
+            ls -la output/${{ env.TEST_ID }}/
+          fi
+
+      - name: Final Test Summary
+        run: |
+          echo "=============================================="
+          echo "📊 TEST SUMMARY"
+          echo "=============================================="
+          
+          FACTCHECK_EXISTS=false
+          SEO_EXISTS=false
+          
+          if [ -f "output/${{ env.TEST_ID }}/factcheck_report.json" ]; then
+            FACTCHECK_EXISTS=true
+          fi
+          
+          if [ -f "output/${{ env.TEST_ID }}/seo_metadata.json" ]; then
+            SEO_EXISTS=true
+          fi
+          
+          echo "✅ Test Article Created: output/${{ env.TEST_ID }}/final_article.md"
+          echo "✅ Research Results Created: output/${{ env.TEST_ID }}/research_results.json"
+          
+          if [ "$FACTCHECK_EXISTS" = true ]; then
+            echo "✅ Factcheck Report: CREATED"
+          else
+            echo "❌ Factcheck Report: MISSING"
+          fi
+          
+          if [ "$SEO_EXISTS" = true ]; then
+            echo "✅ SEO Metadata: CREATED"
+          else
+            echo "❌ SEO Metadata: MISSING"
+          fi
+          
+          echo ""
+          echo "📁 All files in test directory:"
+          ls -la output/${{ env.TEST_ID }}/
+          
+          # 両方のファイルが存在する場合のみ成功
+          if [ "$FACTCHECK_EXISTS" = true ] && [ "$SEO_EXISTS" = true ]; then
+            echo ""
+            echo "🎉 ALL TESTS PASSED!"
+            exit 0
+          else
+            echo ""
+            echo "❌ TESTS FAILED - Some files are missing"
+            exit 1
+          fi
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ env.TEST_ID }}
+          path: output/${{ env.TEST_ID }}
+          retention-days: 7
