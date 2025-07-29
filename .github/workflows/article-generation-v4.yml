@@ -26,6 +26,8 @@ on:
         required: false
         type: boolean
         default: true
+      
+      # Google Drive upload removed
 
 env:
   PYTHON_VERSION: '3.11'
@@ -270,7 +272,7 @@ jobs:
           # バッチ用の分析ファイルを作成
           BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
           
-          # バッチクエリを読み込んでGemini APIで直接検索（並列処理）
+          # バッチクエリを読み込んでGemini APIで直接検索（外部スクリプト使用）
           python3 ../../github-actions/scripts/research_batch_gemini.py ${{ matrix.batch }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -384,7 +386,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
-          max_turns: "20"
+          max_turns: "10"
 
       - name: Upload structure artifacts
         uses: actions/upload-artifact@v4
@@ -440,20 +442,15 @@ jobs:
             echo "article_found=true" >> $GITHUB_OUTPUT
             echo "fallback_used=false" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Primary generation failed, using bash fallback method"
+            echo "⚠️ Primary generation failed, using fallback method"
             echo "📁 Contents of $ARTICLE_DIR:"
             ls -la "$ARTICLE_DIR/" || echo "Directory not found"
             
-            # Create directory if needed
-            mkdir -p "$ARTICLE_DIR"
-            
-            # Generate fallback article using external script
-            python3 ../../github-actions/scripts/generate_fallback_article.py \
+            # Generate fallback article
+            python github-actions/scripts/generate_fallback_article.py \
               --article-dir "$ARTICLE_DIR" \
               --title "${{ inputs.article_title }}" \
               --persona "${{ inputs.persona }}"
-            
-            echo "✅ Bash fallback article generated ($(wc -c < "$ARTICLE_DIR/final_article.md") bytes)"
             
             if [ -f "$ARTICLE_DIR/final_article.md" ]; then
               echo "✅ Fallback article generated successfully"
@@ -548,7 +545,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
-          max_turns: "20"
+          max_turns: "10"
 
       - name: Upload factcheck artifacts
         uses: actions/upload-artifact@v4
@@ -749,7 +746,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
           
-          max_turns: "20"
+          max_turns: "10"
 
       # Google Drive upload removed - using GitHub Artifacts only
 
@@ -962,16 +959,15 @@ jobs:
           echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
           echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
           echo "4. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）" >> "$FINAL_DIR/README.md"
-          
-          ## 🎯 ターゲット情報
-          
-          - **ペルソナ**: ${{ inputs.target_persona }}
-          - **キーワード**: ${{ inputs.meta_keywords }}
-          
-          ## 📝 備考
-          
-          SEO構造化とHTML変換は制作側で実施してください。
-          EOF
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "- **ペルソナ**: ${{ inputs.target_persona }}" >> "$FINAL_DIR/README.md"
+          echo "- **キーワード**: ${{ inputs.meta_keywords }}" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 📝 備考" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "SEO構造化とHTML変換は制作側で実施してください。" >> "$FINAL_DIR/README.md"
           
           echo "📦 V4 final package created in: $FINAL_DIR"
           ls -la $FINAL_DIR/
