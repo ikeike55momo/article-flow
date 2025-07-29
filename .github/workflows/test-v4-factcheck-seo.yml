@@ -235,7 +235,7 @@ jobs:
             ARTICLE_ID=${{ env.TEST_ID }}
             WORD_COUNT=3200
           
-          max_turns: "5"
+          max_turns: "30"
 
       - name: Verify SEO Metadata Output
         run: |
