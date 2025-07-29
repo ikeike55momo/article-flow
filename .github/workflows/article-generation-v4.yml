@@ -496,6 +496,27 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
 
+      - name: Debug - Check files before factcheck
+        run: |
+          echo "📁 Files before factcheck:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "📄 Checking final_article.md:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
+            echo "✅ final_article.md exists"
+            wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.md
+          else
+            echo "❌ final_article.md NOT found"
+          fi
+          echo ""
+          echo "📄 Checking research_results.json:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/research_results.json" ]; then
+            echo "✅ research_results.json exists"
+            wc -l output/${{ needs.initialize.outputs.article_id }}/research_results.json
+          else
+            echo "❌ research_results.json NOT found"
+          fi
+
       - name: Fact-check article with Claude
         uses: anthropics/claude-code-base-action@beta
         with:
@@ -558,6 +579,17 @@ jobs:
           
           max_turns: "10"
 
+      - name: Debug - Check Claude execution
+        run: |
+          echo "🔍 Post-Claude execution check:"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "📁 All files in output directory after Claude:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔍 Looking for any JSON files created:"
+          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
+
       - name: Verify factcheck output
         run: |
           echo "🔍 Checking factcheck output..."
@@ -594,6 +626,20 @@ jobs:
           pattern: '*-${{ needs.initialize.outputs.article_id }}'
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
+
+      - name: Debug - Check files before SEO
+        run: |
+          echo "📁 Files before SEO metadata generation:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "📄 Checking required files:"
+          for file in final_article.md input_params.json phase1_output.json; do
+            if [ -f "output/${{ needs.initialize.outputs.article_id }}/$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file NOT found"
+            fi
+          done
 
       - name: Generate SEO metadata with Claude
         uses: anthropics/claude-code-base-action@beta
@@ -646,6 +692,17 @@ jobs:
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "30"
+
+      - name: Debug - Check Claude execution for SEO
+        run: |
+          echo "🔍 Post-Claude SEO execution check:"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "📁 All files in output directory after Claude SEO:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔍 Looking for any JSON files created:"
+          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
 
       - name: Verify SEO metadata output
         run: |
