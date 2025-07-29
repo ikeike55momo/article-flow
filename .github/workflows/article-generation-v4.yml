@@ -519,7 +519,7 @@ jobs:
                - final_article.md を直接編集
             
             4. 品質レポートを作成:
-               - factcheck_report.json に以下の形式で保存:
+               - output/${ARTICLE_ID}/factcheck_report.json として以下の形式で保存:
                {
                  "overall_quality_score": 85,
                  "fact_accuracy_score": 90,
@@ -562,7 +562,81 @@ jobs:
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ8: 画像生成（MCP + Imagen4）
+  # ジョブ8: SEOメタ情報生成
+  generate-seo-meta:
+    needs: [initialize, analysis, generate-content]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Generate SEO metadata with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事のSEOメタ情報を生成してください。
+            
+            タスク:
+            1. 以下のファイルを読み込んで内容を理解:
+               - final_article.md: 記事本文
+               - input_params.json: 入力パラメータ（メタキーワード含む）
+               - phase1_output.json: 分析結果
+            
+            2. output/${ARTICLE_ID}/seo_metadata.json として以下の形式で保存:
+               {
+                 "title": "記事タイトル（60文字以内）",
+                 "meta_description": "記事の要約（120-160文字）",
+                 "meta_keywords": ["キーワード1", "キーワード2", ...],
+                 "og_title": "OGP用タイトル",
+                 "og_description": "OGP用説明文",
+                 "focus_keyword": "メインキーワード",
+                 "secondary_keywords": ["サブキーワード1", "サブキーワード2"],
+                 "keyword_density": {
+                   "メインキーワード": 2.5,
+                   "サブキーワード1": 1.2
+                 },
+                 "schema_type": "Article",
+                 "estimated_reading_time": "5分",
+                 "word_count": ${WORD_COUNT},
+                 "created_at": "現在時刻"
+               }
+            
+            3. SEO最適化のポイント:
+               - メタディスクリプションは検索結果で表示される重要な要素
+               - キーワードは自然に配置
+               - ペルソナの検索意図を考慮
+               - 競合と差別化できる表現
+          
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORD_COUNT=${{ inputs.word_count }}
+          
+          max_turns: "5"
+
+      - name: Upload SEO metadata artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-meta-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ9: 画像生成（MCP + Imagen4）
   generate-images:
     if: ${{ inputs.enable_image_generation }}
     needs: [initialize, generate-structure]
@@ -704,9 +778,9 @@ jobs:
             imagen/
           retention-days: 30
 
-  # ジョブ9: 最終処理（4つの成果物のみ）
+  # ジョブ10: 最終処理（5つの成果物）
   finalize:
-    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, generate-images]
+    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, generate-seo-meta, generate-images]
     if: always()
     runs-on: ubuntu-latest
     environment: GA
@@ -729,20 +803,22 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            V4の最終パッケージを作成してください。以下の4つの成果物のみを整理してください：
+            V4の最終パッケージを作成してください。以下の5つの成果物を整理してください：
             
             V4最終成果物:
             1. research_results.json - リサーチ結果
             2. factcheck_report.json - ファクトチェック品質スコア
-            3. images/ ディレクトリ - 生成画像群
-            4. final_article.md - 最終記事（Markdown）
+            3. seo_metadata.json - SEOメタ情報（キーワード、ディスクリプション等）
+            4. images/ ディレクトリ - 生成画像群
+            5. final_article.md - 最終記事（Markdown）
             
             タスク:
-            1. 上記4つのファイル/ディレクトリが存在することを確認
+            1. 上記5つのファイル/ディレクトリが存在することを確認
             2. V4_deliverables.md を作成:
-               - 4つの成果物の説明
+               - 5つの成果物の説明
                - ペルソナ最適化のポイント
                - 品質スコアのサマリー
+               - SEOメタ情報のサマリー
                - 使用画像のリスト
             3. 不要なファイルは削除しない（制作側で選択）
           
@@ -774,8 +850,9 @@ jobs:
           echo "### 🎯 V4 Deliverables" >> $GITHUB_STEP_SUMMARY
           echo "1. **research_results.json** - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
           echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
-          echo "3. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
-          echo "4. **final_article.md** - Pure Markdown article (SEO handled by production team)" >> $GITHUB_STEP_SUMMARY
+          echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
+          echo "4. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
+          echo "5. **final_article.md** - Pure Markdown article" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
@@ -894,7 +971,28 @@ jobs:
             fi
           fi
           
-          # 3. ファクトチェック品質レポート - 複数の場所から検索
+          # 3. SEOメタデータ - 複数の場所から検索
+          SEO_LOCATIONS=(
+            "$ARTICLE_DIR/seo_metadata.json"
+            "seo_metadata.json"
+            "seo-*.json"
+          )
+          
+          SEO_FOUND=false
+          for loc in "${SEO_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/seo_metadata.json"
+              echo "✅ Found SEO metadata: $loc"
+              SEO_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$SEO_FOUND" = false ]; then
+            echo "⚠️ No SEO metadata found"
+          fi
+          
+          # 4. ファクトチェック品質レポート - 複数の場所から検索
           FACTCHECK_LOCATIONS=(
             "$ARTICLE_DIR/factcheck_report.json"
             "factcheck_report.json"
@@ -922,7 +1020,7 @@ jobs:
             fi
           fi
           
-          # 4. 画像フォルダ - 複数の場所から検索
+          # 5. 画像フォルダ - 複数の場所から検索
           mkdir -p "$FINAL_DIR/images"
           IMAGES_FOUND=false
           
@@ -961,12 +1059,13 @@ jobs:
           echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
           echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "## 📁 V4成果物（4点）" >> "$FINAL_DIR/README.md"
+          echo "## 📁 V4成果物（5点）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "1. **article.md** - 記事本文（純粋なMarkdown、SEO構造化なし）" >> "$FINAL_DIR/README.md"
+          echo "1. **article.md** - 記事本文（純粋なMarkdown）" >> "$FINAL_DIR/README.md"
           echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
           echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
-          echo "4. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）" >> "$FINAL_DIR/README.md"
+          echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
+          echo "5. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
@@ -1016,7 +1115,7 @@ jobs:
                 "fields": [
                   {"title": "Title", "value": "'"${{ inputs.article_title }}"'", "short": false},
                   {"title": "Persona", "value": "'"${{ inputs.target_persona }}"'", "short": false},
-                  {"title": "Deliverables", "value": "research_results.json, factcheck_report.json, images/, final_article.md", "short": false},
+                  {"title": "Deliverables", "value": "research_results.json, factcheck_report.json, seo_metadata.json, images/, final_article.md", "short": false},
                   {"title": "Workflow", "value": "'"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'", "short": false}
                 ]
               }]
