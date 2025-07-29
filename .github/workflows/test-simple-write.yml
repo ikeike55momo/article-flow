@@ -1,0 +1,49 @@
+name: Test Simple Write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-write:
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test directory
+        run: |
+          mkdir -p output/test
+          echo "Test directory created"
+
+      - name: Test Simple Write
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            Writeツールを使用して output/test/hello.json というファイルを作成してください。
+            内容は以下のJSON:
+            {
+              "message": "Hello from Claude",
+              "timestamp": "2025-01-29T03:00:00Z"
+            }
+          
+          allowed_tools: |
+            Write
+          
+          max_turns: "3"
+
+      - name: Check result
+        run: |
+          echo "Checking if file was created..."
+          if [ -f "output/test/hello.json" ]; then
+            echo "✅ File created successfully!"
+            cat output/test/hello.json
+          else
+            echo "❌ File not created"
+            echo "Contents of output/test:"
+            ls -la output/test/ || echo "Directory not found"
+          fi
