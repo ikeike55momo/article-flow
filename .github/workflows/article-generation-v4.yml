@@ -501,6 +501,11 @@ jobs:
           echo "📁 Files before factcheck:"
           ls -la output/${{ needs.initialize.outputs.article_id }}/
           echo ""
+          echo "🔧 Environment variables:"
+          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
+          echo "WORKSPACE: ${{ github.workspace }}"
+          echo "Expected factcheck path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json"
+          echo ""
           echo "📄 Checking final_article.md:"
           if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
             echo "✅ final_article.md exists"
@@ -566,8 +571,12 @@ jobs:
                - ペルソナが誤解しやすい表現の修正
                - より分かりやすい説明への改善
             
-            【重要】必ずWriteツールを使用して output/${ARTICLE_ID}/factcheck_report.json を作成してください。
-            ファイルパスは完全パスで指定してください。
+            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
+            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
+            
+            コマンド例:
+            Writeツールで以下のパスにファイルを作成:
+            ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
           
           allowed_tools: |
             Read,
@@ -576,6 +585,7 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORKSPACE=${{ github.workspace }}
           
           max_turns: "10"
 
@@ -632,6 +642,11 @@ jobs:
           echo "📁 Files before SEO metadata generation:"
           ls -la output/${{ needs.initialize.outputs.article_id }}/
           echo ""
+          echo "🔧 Environment variables:"
+          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
+          echo "WORKSPACE: ${{ github.workspace }}"
+          echo "Expected SEO path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json"
+          echo ""
           echo "📄 Checking required files:"
           for file in final_article.md input_params.json phase1_output.json; do
             if [ -f "output/${{ needs.initialize.outputs.article_id }}/$file" ]; then
@@ -680,8 +695,12 @@ jobs:
                - ペルソナの検索意図を考慮
                - 競合と差別化できる表現
             
-            【重要】必ずWriteツールを使用して output/${ARTICLE_ID}/seo_metadata.json を作成してください。
-            ファイルパスは完全パスで指定してください。
+            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
+            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
+            
+            コマンド例:
+            Writeツールで以下のパスにファイルを作成:
+            ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
           
           allowed_tools: |
             Read,
@@ -690,6 +709,7 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             WORD_COUNT=${{ inputs.word_count }}
+            WORKSPACE=${{ github.workspace }}
           
           max_turns: "30"
 
