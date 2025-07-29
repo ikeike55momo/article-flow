@@ -263,7 +263,7 @@ jobs:
           
       - name: Install Gemini API dependencies  
         run: |
-          pip install google-generativeai httpx
+          pip install google-genai
 
       - name: Research with Gemini (Batch ${{ matrix.batch }})
         run: |

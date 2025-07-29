@@ -193,7 +193,7 @@ jobs:
 
       - name: Install Gemini dependencies
         run: |
-          pip install google-generativeai httpx
+          pip install google-genai
 
       # Phase 2: Parallel research using Gemini API
       - name: Phase 2 - Parallel Research with Gemini (Batch ${{ matrix.batch }})
