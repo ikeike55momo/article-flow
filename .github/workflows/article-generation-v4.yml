@@ -645,7 +645,7 @@ jobs:
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             WORD_COUNT=${{ inputs.word_count }}
           
-          max_turns: "5"
+          max_turns: "30"
 
       - name: Verify SEO metadata output
         run: |
