@@ -424,7 +424,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: prompts/04_writing_v4.md
+          prompt_file: prompts/04_writing_v4_html.md
           
           allowed_tools: |
             Read,
@@ -917,7 +917,7 @@ jobs:
             2. factcheck_report.json - ファクトチェック品質スコア
             3. seo_metadata.json - SEOメタ情報（キーワード、ディスクリプション等）
             4. images/ ディレクトリ - 生成画像群
-            5. final_article.md - 最終記事（Markdown）
+            5. final_article.html - 最終記事（HTML形式、画像配置済み）
             
             タスク:
             1. 上記5つのファイル/ディレクトリが存在することを確認
@@ -927,6 +927,7 @@ jobs:
                - 品質スコアのサマリー
                - SEOメタ情報のサマリー
                - 使用画像のリスト
+               - HTML形式の特徴（指定テンプレート使用）
             3. 不要なファイルは削除しない（制作側で選択）
           
           allowed_tools: |
@@ -959,7 +960,7 @@ jobs:
           echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
           echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
           echo "4. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
-          echo "5. **final_article.md** - Pure Markdown article" >> $GITHUB_STEP_SUMMARY
+          echo "5. **final_article.html** - HTML article with embedded images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
@@ -1016,35 +1017,33 @@ jobs:
           echo ""
           echo "🔄 Collecting V4 deliverables from artifacts..."
           
-          # 1. メイン記事 (Markdown) - アーティファクトから検索
+          # 1. メイン記事 (HTML) - アーティファクトから検索
           ARTICLE_FOUND=false
           
           # 複数の場所から記事ファイルを検索
           POSSIBLE_ARTICLES=(
-            "$ARTICLE_DIR/final_article.md"
-            "$ARTICLE_DIR/04_draft_article.md" 
-            "$ARTICLE_DIR/article.md"
-            "final_article.md"
-            "04_draft_article.md"
-            "article.md"
+            "$ARTICLE_DIR/final_article.html"
+            "$ARTICLE_DIR/article.html"
+            "final_article.html"
+            "article.html"
           )
           
           for article_path in "${POSSIBLE_ARTICLES[@]}"; do
             if [ -f "$article_path" ]; then
-              cp "$article_path" "$FINAL_DIR/article.md"
+              cp "$article_path" "$FINAL_DIR/article.html"
               echo "✅ Found and copied article: $article_path ($(wc -c < "$article_path") bytes)"
               ARTICLE_FOUND=true
               break
             fi
           done
           
-          # 記事が見つからない場合は.mdファイルを検索
+          # 記事が見つからない場合は.htmlファイルを検索
           if [ "$ARTICLE_FOUND" = false ]; then
-            echo "⚠️ Standard article files not found, searching for any .md files..."
-            MD_FILE=$(find . -name "*.md" -type f ! -name "README.md" | head -1)
-            if [ -n "$MD_FILE" ]; then
-              cp "$MD_FILE" "$FINAL_DIR/article.md"
-              echo "✅ Using fallback .md file: $MD_FILE ($(wc -c < "$MD_FILE") bytes)"
+            echo "⚠️ Standard article files not found, searching for any .html files..."
+            HTML_FILE=$(find . -name "*.html" -type f ! -name "index.html" | head -1)
+            if [ -n "$HTML_FILE" ]; then
+              cp "$HTML_FILE" "$FINAL_DIR/article.html"
+              echo "✅ Using fallback .html file: $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
               ARTICLE_FOUND=true
             fi
           fi
@@ -1052,9 +1051,7 @@ jobs:
           if [ "$ARTICLE_FOUND" = false ]; then
             echo "❌ ERROR: No article file found in any location!"
             echo "Creating minimal article as last resort..."
-            echo "# 記事生成エラー" > "$FINAL_DIR/article.md"
-            echo "記事ファイルが見つかりませんでした。" >> "$FINAL_DIR/article.md"
-            echo "ワークフローの実行ログを確認してください。" >> "$FINAL_DIR/article.md"
+            echo '<div class="article-content"><h2>記事生成エラー</h2><p>記事ファイルが見つかりませんでした。ワークフローの実行ログを確認してください。</p></div>' > "$FINAL_DIR/article.html"
           fi
           
           # 2. リサーチ結果 - 複数の場所から検索
@@ -1160,6 +1157,7 @@ jobs:
             done
           fi
           
+          
           # V4成果物説明
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
             cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables.md"
@@ -1179,11 +1177,11 @@ jobs:
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📁 V4成果物（5点）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "1. **article.md** - 記事本文（純粋なMarkdown）" >> "$FINAL_DIR/README.md"
+          echo "1. **article.html** - 記事本文（HTML形式、画像配置済み）" >> "$FINAL_DIR/README.md"
           echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
           echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
           echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
-          echo "5. **images/** - 生成画像（ヒーロー1枚 + セクション4枚）" >> "$FINAL_DIR/README.md"
+          echo "5. **images/** - 生成画像（各セクション用）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
@@ -1192,7 +1190,9 @@ jobs:
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📝 備考" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "SEO構造化とHTML変換は制作側で実施してください。" >> "$FINAL_DIR/README.md"
+          echo "- **article.html**: 指定テンプレート形式のHTML（<div class=\"article-content\">で開始）" >> "$FINAL_DIR/README.md"
+          echo "- 画像は各セクションに配置済み" >> "$FINAL_DIR/README.md"
+          echo "- 追加のスタイルやSEO構造化が必要な場合は制作側で実施してください" >> "$FINAL_DIR/README.md"
           
           echo "📦 V4 final package created in: $FINAL_DIR"
           ls -la $FINAL_DIR/
@@ -1233,7 +1233,7 @@ jobs:
                 "fields": [
                   {"title": "Title", "value": "'"${{ inputs.article_title }}"'", "short": false},
                   {"title": "Persona", "value": "'"${{ inputs.target_persona }}"'", "short": false},
-                  {"title": "Deliverables", "value": "research_results.json, factcheck_report.json, seo_metadata.json, images/, final_article.md", "short": false},
+                  {"title": "Deliverables", "value": "research_results.json, factcheck_report.json, seo_metadata.json, images/, final_article.html", "short": false},
                   {"title": "Workflow", "value": "'"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'", "short": false}
                 ]
               }]
