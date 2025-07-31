@@ -445,27 +445,23 @@ jobs:
           ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           echo "🔍 Checking for generated article file..."
           
-          if [ -f "$ARTICLE_DIR/final_article.md" ]; then
-            echo "✅ Found final_article.md"
+          if [ -f "$ARTICLE_DIR/final_article.html" ]; then
+            echo "✅ Found final_article.html"
             echo "article_found=true" >> $GITHUB_OUTPUT
             echo "fallback_used=false" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Primary generation failed, using fallback method"
+            echo "⚠️ Primary generation failed, checking for fallback..."
             echo "📁 Contents of $ARTICLE_DIR:"
             ls -la "$ARTICLE_DIR/" || echo "Directory not found"
             
-            # Generate fallback article
-            python github-actions/scripts/generate_fallback_article.py \
-              --article-dir "$ARTICLE_DIR" \
-              --title "${{ inputs.article_title }}" \
-              --persona "${{ inputs.persona }}"
-            
-            if [ -f "$ARTICLE_DIR/final_article.md" ]; then
-              echo "✅ Fallback article generated successfully"
+            # Check if any HTML file exists
+            if [ -f "$ARTICLE_DIR/article.html" ]; then
+              mv "$ARTICLE_DIR/article.html" "$ARTICLE_DIR/final_article.html"
+              echo "✅ Found article.html, renamed to final_article.html"
               echo "article_found=true" >> $GITHUB_OUTPUT
-              echo "fallback_used=true" >> $GITHUB_OUTPUT
+              echo "fallback_used=false" >> $GITHUB_OUTPUT
             else
-              echo "❌ ERROR: Both primary and fallback generation failed!"
+              echo "❌ ERROR: No HTML article generated!"
               echo "article_found=false" >> $GITHUB_OUTPUT
               exit 1
             fi
@@ -532,7 +528,7 @@ jobs:
             
             タスク:
             1. 以下のファイルを読み込んで内容を確認:
-               - output/${ARTICLE_ID}/final_article.md: 記事本文
+               - output/${ARTICLE_ID}/final_article.html: 記事本文
                - output/${ARTICLE_ID}/research_results.json: リサーチ結果
             
             2. 以下の観点でチェック:
@@ -542,7 +538,7 @@ jobs:
                - 医学的・科学的主張の妥当性
             
             3. 修正が必要な場合:
-               - final_article.md を直接編集
+               - final_article.html を直接編集
             
             4. 品質レポートを作成:
                - output/${ARTICLE_ID}/factcheck_report.json として以下の形式で保存:
@@ -666,7 +662,7 @@ jobs:
             
             タスク:
             1. 以下のファイルを読み込んで内容を理解:
-               - output/${ARTICLE_ID}/final_article.md: 記事本文
+               - output/${ARTICLE_ID}/final_article.html: 記事本文
                - output/${ARTICLE_ID}/input_params.json: 入力パラメータ（メタキーワード含む）
                - output/${ARTICLE_ID}/phase1_output.json: 分析結果
             
