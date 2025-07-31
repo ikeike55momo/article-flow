@@ -1142,16 +1142,41 @@ jobs:
             IMAGES_FOUND=true
           fi
           
-          # その他の場所から画像を検索
+          # imagen/ フォルダから画像を検索（MCP画像生成の場所）
+          if [ -d "imagen" ]; then
+            echo "📁 Checking imagen/ directory for MCP generated images..."
+            cp imagen/*.png "$FINAL_DIR/images/" 2>/dev/null || true
+            cp imagen/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+            if [ "$(ls -A imagen/*.png 2>/dev/null)" ] || [ "$(ls -A imagen/*.jpg 2>/dev/null)" ]; then
+              echo "✅ Found images in imagen/"
+              IMAGES_FOUND=true
+            fi
+          fi
+          
+          # images-*/output/*/images/ から画像を検索（アーティファクトの構造）
+          IMAGE_ARTIFACT_PATH=$(find . -path "*/images-*/output/*/images" -type d | head -1)
+          if [ -n "$IMAGE_ARTIFACT_PATH" ]; then
+            echo "📁 Found image artifact path: $IMAGE_ARTIFACT_PATH"
+            cp "$IMAGE_ARTIFACT_PATH"/*.png "$FINAL_DIR/images/" 2>/dev/null || true
+            cp "$IMAGE_ARTIFACT_PATH"/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+            IMAGES_FOUND=true
+          fi
+          
+          # その他の場所から画像を検索（最後の手段）
           if [ "$IMAGES_FOUND" = false ]; then
+            echo "⚠️ Standard image locations not found, searching all directories..."
             find . -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | while read img; do
-              if [[ "$img" != *"README"* ]]; then
+              if [[ "$img" != *"README"* ]] && [[ "$img" != *"node_modules"* ]]; then
                 cp "$img" "$FINAL_DIR/images/" 2>/dev/null || true
                 echo "✅ Found image: $img"
                 IMAGES_FOUND=true
               fi
             done
           fi
+          
+          # 画像フォルダの内容を確認
+          echo "📁 Final images directory contents:"
+          ls -la "$FINAL_DIR/images/" 2>/dev/null || echo "No images directory created"
           
           
           # V4成果物説明
