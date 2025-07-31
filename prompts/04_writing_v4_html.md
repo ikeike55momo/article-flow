@@ -153,7 +153,7 @@ Read the following files from the article directory:
 <section class="article-cta-section">
   <h2>{行動喚起のタイトル}</h2>
   <p>{読者への行動喚起メッセージ}</p>
-  <a href="#" class="article-cta-button">{ボタンテキスト}</a>
+  <a href="https://beauty.hotpepper.jp/kr/slnH000618948/" class="article-cta-button">{ボタンテキスト}</a>
 </section>
 
 <div class="article-reliability-info">
@@ -223,5 +223,6 @@ Read the following files from the article directory:
 3. 画像パスは `images/` ディレクトリを前提とする
 4. 指定されたクラス名を正確に使用する
 5. 画像には必ず `loading="lazy" decoding="async"` を含める
+6. CTAボタンのリンクは必ず `https://beauty.hotpepper.jp/kr/slnH000618948/` に固定
 
 高品質で読者価値の高い記事の作成をお願いします。
