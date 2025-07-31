@@ -48,6 +48,7 @@ Read the following files from the article directory:
 ```html
 <div class="article-content">
 
+<h1>{記事タイトル}</h1>
 
 <p class="article-lead-text">
 {記事の導入文をここに記載。読者の興味を引く内容で、記事の概要を説明}
