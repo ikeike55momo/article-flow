@@ -48,9 +48,6 @@ Read the following files from the article directory:
 ```html
 <div class="article-content">
 
-<div class="article-expert-badge">
-  <p>この記事は専門スタッフが執筆・監修しています。</p>
-</div>
 
 <p class="article-lead-text">
 {記事の導入文をここに記載。読者の興味を引く内容で、記事の概要を説明}
