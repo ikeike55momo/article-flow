@@ -986,6 +986,17 @@ jobs:
           find . -name "*.json" -o -name "*.md" -o -name "*.png" -o -name "*.jpg" | head -20
           
           echo ""
+          echo "🖼️ Specifically looking for images:"
+          echo "PNG files:"
+          find . -name "*.png" -type f 2>/dev/null | head -10
+          echo "JPG files:"
+          find . -name "*.jpg" -o -name "*.jpeg" -type f 2>/dev/null | head -10
+          echo ""
+          echo "Image directories:"
+          find . -name "images" -type d 2>/dev/null
+          find . -name "imagen" -type d 2>/dev/null
+          
+          echo ""
           echo "🔍 Current working directory contents:"
           ls -la
           
@@ -1154,11 +1165,21 @@ jobs:
           fi
           
           # images-*/output/*/images/ から画像を検索（アーティファクトの構造）
-          IMAGE_ARTIFACT_PATH=$(find . -path "*/images-*/output/*/images" -type d | head -1)
-          if [ -n "$IMAGE_ARTIFACT_PATH" ]; then
-            echo "📁 Found image artifact path: $IMAGE_ARTIFACT_PATH"
-            cp "$IMAGE_ARTIFACT_PATH"/*.png "$FINAL_DIR/images/" 2>/dev/null || true
-            cp "$IMAGE_ARTIFACT_PATH"/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+          IMAGE_ARTIFACT_PATHS=$(find . -path "*/images-*/output/*/images" -type d 2>/dev/null)
+          if [ -n "$IMAGE_ARTIFACT_PATHS" ]; then
+            for img_path in $IMAGE_ARTIFACT_PATHS; do
+              echo "📁 Found image artifact path: $img_path"
+              cp "$img_path"/*.png "$FINAL_DIR/images/" 2>/dev/null || true
+              cp "$img_path"/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+              IMAGES_FOUND=true
+            done
+          fi
+          
+          # 直接 output/*/images または output/*/imagen から検索
+          if [ -d "$ARTICLE_DIR/images" ] || [ -d "$ARTICLE_DIR/imagen" ]; then
+            echo "📁 Checking output artifact directories..."
+            [ -d "$ARTICLE_DIR/images" ] && cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
+            [ -d "$ARTICLE_DIR/imagen" ] && cp -r "$ARTICLE_DIR/imagen/"* "$FINAL_DIR/images/" 2>/dev/null || true
             IMAGES_FOUND=true
           fi
           
