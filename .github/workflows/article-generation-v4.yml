@@ -526,63 +526,53 @@ jobs:
           prompt: |
             記事のファクトチェックを行い、品質スコアを算出してください。
             
-            【重要な指示】
-            あなたは現在 ${WORKSPACE} ディレクトリで作業しています。
-            必ず以下の手順に従ってファイルを作成してください：
+            タスク:
+            1. 以下のファイルを読み込んで内容を確認:
+               - output/${ARTICLE_ID}/final_article.html: 記事本文
+               - output/${ARTICLE_ID}/research_results.json: リサーチ結果
             
-            **STEP 1: 作業ディレクトリの確認**
-            - 現在の作業ディレクトリを確認
-            - output/${ARTICLE_ID}/ ディレクトリが存在するか確認
+            2. 以下の観点でチェック:
+               - 事実の正確性（リサーチ結果との照合）
+               - 薬機法・景表法の遵守
+               - 数値や統計の正確性
+               - 医学的・科学的主張の妥当性
             
-            **STEP 2: 必要なファイルの読み込み**
-            以下のファイルを読み込んで内容を確認:
-            - output/${ARTICLE_ID}/final_article.html: 記事本文
-            - output/${ARTICLE_ID}/research_results.json: リサーチ結果
+            3. 修正が必要な場合:
+               - final_article.html を直接編集
             
-            **STEP 3: ファクトチェック実行**
-            以下の観点でチェック:
-            - 事実の正確性（リサーチ結果との照合）
-            - 薬機法・景表法の遵守
-            - 数値や統計の正確性
-            - 医学的・科学的主張の妥当性
+            4. 品質レポートを作成:
+               - output/${ARTICLE_ID}/factcheck_report.json として以下の形式で保存:
+               {
+                 "overall_quality_score": 85,
+                 "fact_accuracy_score": 90,
+                 "legal_compliance_score": 95,
+                 "scientific_validity_score": 80,
+                 "source_reliability_score": 85,
+                 "issues_found": [
+                   {
+                     "type": "fact_error",
+                     "description": "問題の説明",
+                     "location": "記事内の場所",
+                     "severity": "high/medium/low",
+                     "corrected": true/false
+                   }
+                 ],
+                 "recommendations": ["改善提案1", "改善提案2"],
+                 "timestamp": "現在時刻",
+                 "total_issues": 3,
+                 "corrected_issues": 2
+               }
             
-            **STEP 4: 記事の修正（必要な場合）**
-            - final_article.html を直接編集
+            5. ペルソナへの配慮:
+               - ペルソナが誤解しやすい表現の修正
+               - より分かりやすい説明への改善
             
-            **STEP 5: ファクトチェックレポートの作成（必須）**
-            必ずWriteツールを使用して、正確に以下のパスにファイルを作成してください：
+            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
+            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
             
-            ファイルパス: output/${ARTICLE_ID}/factcheck_report.json
-            
-            JSONの形式:
-            {
-              "overall_quality_score": 85,
-              "fact_accuracy_score": 90,
-              "legal_compliance_score": 95,
-              "scientific_validity_score": 80,
-              "source_reliability_score": 85,
-              "issues_found": [
-                {
-                  "type": "fact_error",
-                  "description": "問題の説明",
-                  "location": "記事内の場所",
-                  "severity": "high/medium/low",
-                  "corrected": true/false
-                }
-              ],
-              "recommendations": ["改善提案1", "改善提案2"],
-              "timestamp": "現在時刻",
-              "total_issues": 3,
-              "corrected_issues": 2
-            }
-            
-            **STEP 6: ファイル作成の確認**
-            ファイルが正しく作成されたことを確認してください。
-            
-            【絶対に守ること】
-            - ファイルパスは相対パス output/${ARTICLE_ID}/factcheck_report.json を使用
-            - 絶対パスや ${WORKSPACE} は使用しない
-            - Writeツールでファイルを作成する前に、ディレクトリ構造を確認する
+            コマンド例:
+            Writeツールで以下のパスにファイルを作成:
+            ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
           
           allowed_tools: |
             Read,
@@ -670,60 +660,43 @@ jobs:
           prompt: |
             記事のSEOメタ情報を生成してください。
             
-            【重要な指示】
-            あなたは現在 ${WORKSPACE} ディレクトリで作業しています。
-            必ず以下の手順に従ってファイルを作成してください：
+            タスク:
+            1. 以下のファイルを読み込んで内容を理解:
+               - output/${ARTICLE_ID}/final_article.html: 記事本文
+               - output/${ARTICLE_ID}/input_params.json: 入力パラメータ（メタキーワード含む）
+               - output/${ARTICLE_ID}/phase1_output.json: 分析結果
             
-            **STEP 1: 作業ディレクトリの確認**
-            - 現在の作業ディレクトリを確認
-            - output/${ARTICLE_ID}/ ディレクトリが存在するか確認
+            2. output/${ARTICLE_ID}/seo_metadata.json として以下の形式で保存:
+               {
+                 "title": "記事タイトル（60文字以内）",
+                 "meta_description": "記事の要約（120-160文字）",
+                 "meta_keywords": ["キーワード1", "キーワード2", ...],
+                 "og_title": "OGP用タイトル",
+                 "og_description": "OGP用説明文",
+                 "focus_keyword": "メインキーワード",
+                 "secondary_keywords": ["サブキーワード1", "サブキーワード2"],
+                 "keyword_density": {
+                   "メインキーワード": 2.5,
+                   "サブキーワード1": 1.2
+                 },
+                 "schema_type": "Article",
+                 "estimated_reading_time": "5分",
+                 "word_count": ${WORD_COUNT},
+                 "created_at": "現在時刻"
+               }
             
-            **STEP 2: 必要なファイルの読み込み**
-            以下のファイルを読み込んで内容を理解:
-            - output/${ARTICLE_ID}/final_article.html: 記事本文
-            - output/${ARTICLE_ID}/input_params.json: 入力パラメータ（メタキーワード含む）
-            - output/${ARTICLE_ID}/phase1_output.json: 分析結果
+            3. SEO最適化のポイント:
+               - メタディスクリプションは検索結果で表示される重要な要素
+               - キーワードは自然に配置
+               - ペルソナの検索意図を考慮
+               - 競合と差別化できる表現
             
-            **STEP 3: SEOメタデータの生成**
-            記事の内容を分析して最適なSEOメタ情報を作成
+            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
+            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
             
-            **STEP 4: SEOメタデータファイルの作成（必須）**
-            必ずWriteツールを使用して、正確に以下のパスにファイルを作成してください：
-            
-            ファイルパス: output/${ARTICLE_ID}/seo_metadata.json
-            
-            JSONの形式:
-            {
-              "title": "記事タイトル（60文字以内）",
-              "meta_description": "記事の要約（120-160文字）",
-              "meta_keywords": ["キーワード1", "キーワード2", ...],
-              "og_title": "OGP用タイトル",
-              "og_description": "OGP用説明文",
-              "focus_keyword": "メインキーワード",
-              "secondary_keywords": ["サブキーワード1", "サブキーワード2"],
-              "keyword_density": {
-                "メインキーワード": 2.5,
-                "サブキーワード1": 1.2
-              },
-              "schema_type": "Article",
-              "estimated_reading_time": "5分",
-              "word_count": ${WORD_COUNT},
-              "created_at": "現在時刻"
-            }
-            
-            **STEP 5: SEO最適化のポイント**
-            - メタディスクリプションは検索結果で表示される重要な要素
-            - キーワードは自然に配置
-            - ペルソナの検索意図を考慮
-            - 競合と差別化できる表現
-            
-            **STEP 6: ファイル作成の確認**
-            ファイルが正しく作成されたことを確認してください。
-            
-            【絶対に守ること】
-            - ファイルパスは相対パス output/${ARTICLE_ID}/seo_metadata.json を使用
-            - 絶対パスや ${WORKSPACE} は使用しない
-            - Writeツールでファイルを作成する前に、ディレクトリ構造を確認する
+            コマンド例:
+            Writeツールで以下のパスにファイルを作成:
+            ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
           
           allowed_tools: |
             Read,
