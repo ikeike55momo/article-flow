@@ -1246,38 +1246,3 @@ jobs:
           path: final_package
           retention-days: 30
 
-  # 通知（オプション）
-  notify:
-    needs: [initialize, finalize]
-    if: always()
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Send Slack notification
-        if: ${{ secrets.SLACK_WEBHOOK != '' }}
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-        run: |
-          STATUS="${{ needs.finalize.result }}"
-          COLOR="good"
-          EMOJI="✅"
-          
-          if [ "$STATUS" != "success" ]; then
-            COLOR="danger"
-            EMOJI="❌"
-          fi
-          
-          curl -X POST $SLACK_WEBHOOK \
-            -H 'Content-type: application/json' \
-            -d '{
-              "attachments": [{
-                "color": "'$COLOR'",
-                "title": "'$EMOJI' Article Generation V4 '$STATUS'",
-                "fields": [
-                  {"title": "Title", "value": "'"${{ inputs.article_title }}"'", "short": false},
-                  {"title": "Persona", "value": "'"${{ inputs.target_persona }}"'", "short": false},
-                  {"title": "Deliverables", "value": "research_results.json, factcheck_report.json, seo_metadata.json, images/, final_article.html", "short": false},
-                  {"title": "Workflow", "value": "'"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'", "short": false}
-                ]
-              }]
-            }'
