@@ -1276,11 +1276,12 @@ jobs:
   # 通知（オプション）
   notify:
     needs: [initialize, finalize]
-    if: always() && secrets.SLACK_WEBHOOK != ''
+    if: always()
     runs-on: ubuntu-latest
     
     steps:
       - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK != '' }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
         run: |
