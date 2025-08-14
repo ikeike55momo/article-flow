@@ -33,7 +33,10 @@
       "Bash(gh run view:*)",
       "Bash(gh api:*)",
       "WebFetch(domain:ai.google.dev)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "WebFetch(domain:docs.github.com)",
+      "Bash(cp:*)",
+      "Bash(diff:*)"
     ],
     "deny": []
   }

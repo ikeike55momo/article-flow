@@ -424,7 +424,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: prompts/04_writing_v4_html.md
+          prompt_file: prompts/04_writing_v4_html_updated.md
           
           allowed_tools: |
             Read,
