@@ -36,8 +36,13 @@
       "Bash(gh workflow run:*)",
       "WebFetch(domain:docs.github.com)",
       "Bash(cp:*)",
-      "Bash(diff:*)"
+      "Bash(diff:*)",
+      "mcp__serena__read_file",
+      "mcp__serena__activate_project",
+      "mcp__serena__list_dir",
+      "mcp__serena__create_text_file"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }
