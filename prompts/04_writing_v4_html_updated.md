@@ -8,19 +8,13 @@
 - TARGET_PERSONA: {{TARGET_PERSONA}}
 - WORD_COUNT: {{WORD_COUNT}}
 
-## Reference Files
-必ず以下のファイルを読み込んで出力形式を理解してください：
-1. `sample/articles/hand-cream-article.html` - 実際の出力サンプル
-2. `sample/articles/article-style.md` - 記事作成ガイド
-3. `sample/articles/article-template.html` - HTMLテンプレート
-
 ## Input Files
 記事生成のために以下のファイルを読み込んでください：
 1. `output/${ARTICLE_ID}/input_params.json` - 記事パラメータ
 2. `output/${ARTICLE_ID}/phase1_output.json` - 分析結果
 3. `output/${ARTICLE_ID}/research_results.json` - リサーチデータ（重要：出典URL含む）
-4. `output/${ARTICLE_ID}/01_article_structure.md` - 記事構成
-5. `output/${ARTICLE_ID}/02_content_plan.md` - 内容計画
+4. `output/${ARTICLE_ID}/01_article_structure.md` - 記事構成（あれば）
+5. `output/${ARTICLE_ID}/02_content_plan.md` - 内容計画（あれば）
 
 ## Critical Requirements
 
