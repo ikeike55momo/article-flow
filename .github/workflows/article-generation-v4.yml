@@ -125,44 +125,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          prompt: |
-            記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
-            
-            入力情報:
-            - トピック: ${{ inputs.article_title }}  
-            - ターゲット読者: ${{ inputs.target_persona }}
-            - メタキーワード: ${{ inputs.meta_keywords }}
-            
-            タスク:
-            1. output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解
-            2. 以下の分析を実行:
-               - メインキーワードの特定
-               - 関連キーワードの抽出（5-8個）
-               - 検索意図の分析
-               - リサーチクエリの生成（15-25個）
-            
-            3. 分析結果を output/${{ needs.initialize.outputs.article_id }}/phase1_output.json ファイルに保存してください
-            
-            重要：以下の形式でanalysisオブジェクトを含むJSONを作成してください：
-            {
-              "analysis": {
-                "main_keyword": "抽出したメインキーワード",
-                "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
-                "search_intent": "informational",
-                "content_type": "how-to", 
-                "tone": "friendly",
-                "key_points": ["ポイント1", "ポイント2", "ポイント3"],
-                "research_queries": ["クエリ1", "クエリ2", "クエリ3", "クエリ4", "クエリ5", "クエリ6", "クエリ7", "クエリ8", "クエリ9", "クエリ10", "クエリ11", "クエリ12", "クエリ13", "クエリ14", "クエリ15"],
-                "competitor_analysis_needed": true,
-                "local_seo_focus": false,
-                "estimated_sections": 5
-              },
-              "topic": "${{ inputs.article_title }}",
-              "target_audience": "${{ inputs.target_persona }}",
-              "keywords": "${{ inputs.meta_keywords }}",
-              "processed_at": "現在時刻",
-              "workflow_version": "4.0.0"
-            }
+          prompt_file: Prompt_v2/CHAT_01_phase1_analysis.md
           
           allowed_tools: |
             Read,
@@ -170,6 +133,10 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
+            WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "5"
       
@@ -360,30 +327,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          prompt: |
-            健康・美容に関する記事の基本構成を作成してください。（SEO最適化は制作側で実施するため、純粋な記事構成のみ作成）
-            
-            入力情報:
-            - 記事タイトル: ${{ inputs.article_title }}
-            - ターゲットペルソナ: ${{ inputs.target_persona }}
-            - メタキーワード: ${{ inputs.meta_keywords }}
-            
-            タスク:
-            1. 以下のファイルを読み込んで理解:
-               - input_params.json: 入力パラメータ
-               - phase1_output.json: 分析結果
-               - research_results.json: リサーチ結果
-            2. 分析とリサーチ結果を踏まえてペルソナに最適化された記事構成を作成
-            3. 以下のファイルを生成:
-               - 01_article_structure.md: 詳細な記事構成
-               - 02_content_plan.md: 各セクションの内容計画
-            
-            要件:
-            - ペルソナの悩みや関心事に寄り添う構成
-            - メタキーワードを自然に組み込む
-            - 薬機法・景表法を考慮した表現計画
-            - 読みやすく価値のある記事構成
-            - SEO最適化は考慮しない（制作側で実施するため）
+          prompt_file: Prompt_v2/CHAT_02_structure_generation.md
           
           allowed_tools: |
             Read,
@@ -392,6 +336,10 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
+            WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "10"
 
@@ -424,7 +372,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: prompts/04_writing_v4_html_updated.md
+          prompt_file: Prompt_v2/CHAT_03_content_generation_v2.md
           
           allowed_tools: |
             Read,
@@ -433,8 +381,9 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            TITLE=${{ inputs.article_title }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
             TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "15"
@@ -523,56 +472,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          prompt: |
-            記事のファクトチェックを行い、品質スコアを算出してください。
-            
-            タスク:
-            1. 以下のファイルを読み込んで内容を確認:
-               - output/${ARTICLE_ID}/final_article.html: 記事本文
-               - output/${ARTICLE_ID}/research_results.json: リサーチ結果
-            
-            2. 以下の観点でチェック:
-               - 事実の正確性（リサーチ結果との照合）
-               - 薬機法・景表法の遵守
-               - 数値や統計の正確性
-               - 医学的・科学的主張の妥当性
-            
-            3. 修正が必要な場合:
-               - final_article.html を直接編集
-            
-            4. 品質レポートを作成:
-               - output/${ARTICLE_ID}/factcheck_report.json として以下の形式で保存:
-               {
-                 "overall_quality_score": 85,
-                 "fact_accuracy_score": 90,
-                 "legal_compliance_score": 95,
-                 "scientific_validity_score": 80,
-                 "source_reliability_score": 85,
-                 "issues_found": [
-                   {
-                     "type": "fact_error",
-                     "description": "問題の説明",
-                     "location": "記事内の場所",
-                     "severity": "high/medium/low",
-                     "corrected": true/false
-                   }
-                 ],
-                 "recommendations": ["改善提案1", "改善提案2"],
-                 "timestamp": "現在時刻",
-                 "total_issues": 3,
-                 "corrected_issues": 2
-               }
-            
-            5. ペルソナへの配慮:
-               - ペルソナが誤解しやすい表現の修正
-               - より分かりやすい説明への改善
-            
-            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
-            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
-            
-            コマンド例:
-            Writeツールで以下のパスにファイルを作成:
-            ${WORKSPACE}/output/${ARTICLE_ID}/factcheck_report.json
+          prompt_file: Prompt_v2/CHAT_04_factcheck.md
           
           allowed_tools: |
             Read,
@@ -581,6 +481,9 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
             WORKSPACE=${{ github.workspace }}
           
           max_turns: "10"
@@ -657,46 +560,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          prompt: |
-            記事のSEOメタ情報を生成してください。
-            
-            タスク:
-            1. 以下のファイルを読み込んで内容を理解:
-               - output/${ARTICLE_ID}/final_article.html: 記事本文
-               - output/${ARTICLE_ID}/input_params.json: 入力パラメータ（メタキーワード含む）
-               - output/${ARTICLE_ID}/phase1_output.json: 分析結果
-            
-            2. output/${ARTICLE_ID}/seo_metadata.json として以下の形式で保存:
-               {
-                 "title": "記事タイトル（60文字以内）",
-                 "meta_description": "記事の要約（120-160文字）",
-                 "meta_keywords": ["キーワード1", "キーワード2", ...],
-                 "og_title": "OGP用タイトル",
-                 "og_description": "OGP用説明文",
-                 "focus_keyword": "メインキーワード",
-                 "secondary_keywords": ["サブキーワード1", "サブキーワード2"],
-                 "keyword_density": {
-                   "メインキーワード": 2.5,
-                   "サブキーワード1": 1.2
-                 },
-                 "schema_type": "Article",
-                 "estimated_reading_time": "5分",
-                 "word_count": ${WORD_COUNT},
-                 "created_at": "現在時刻"
-               }
-            
-            3. SEO最適化のポイント:
-               - メタディスクリプションは検索結果で表示される重要な要素
-               - キーワードは自然に配置
-               - ペルソナの検索意図を考慮
-               - 競合と差別化できる表現
-            
-            【重要】必ずWriteツールを使用して以下のファイルを作成してください:
-            ファイルパス: ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
-            
-            コマンド例:
-            Writeツールで以下のパスにファイルを作成:
-            ${WORKSPACE}/output/${ARTICLE_ID}/seo_metadata.json
+          prompt_file: Prompt_v2/CHAT_05_seo_metadata.md
           
           allowed_tools: |
             Read,
@@ -704,6 +568,9 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
             WORD_COUNT=${{ inputs.word_count }}
             WORKSPACE=${{ github.workspace }}
           
@@ -905,26 +772,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          prompt: |
-            V4の最終パッケージを作成してください。以下の5つの成果物を整理してください：
-            
-            V4最終成果物:
-            1. research_results.json - リサーチ結果
-            2. factcheck_report.json - ファクトチェック品質スコア
-            3. seo_metadata.json - SEOメタ情報（キーワード、ディスクリプション等）
-            4. images/ ディレクトリ - 生成画像群
-            5. final_article.html - 最終記事（HTML形式、画像配置済み）
-            
-            タスク:
-            1. 上記5つのファイル/ディレクトリが存在することを確認
-            2. V4_deliverables.md を作成:
-               - 5つの成果物の説明
-               - ペルソナ最適化のポイント
-               - 品質スコアのサマリー
-               - SEOメタ情報のサマリー
-               - 使用画像のリスト
-               - HTML形式の特徴（指定テンプレート使用）
-            3. 不要なファイルは削除しない（制作側で選択）
+          prompt_file: Prompt_v2/CHAT_06_finalize.md
           
           allowed_tools: |
             Read,
@@ -933,6 +781,10 @@ jobs:
           
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            ARTICLE_TITLE=${{ inputs.article_title }}
+            TARGET_PERSONA=${{ inputs.target_persona }}
+            META_KEYWORDS=${{ inputs.meta_keywords }}
+            WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "10"
 
@@ -951,12 +803,13 @@ jobs:
           echo "- **Keywords**: ${{ inputs.meta_keywords }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "### 🎯 V4 Deliverables" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 V4 Deliverables (Prompt_v2準拠)" >> $GITHUB_STEP_SUMMARY
           echo "1. **research_results.json** - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
           echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
           echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
-          echo "4. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
-          echo "5. **final_article.html** - HTML article with embedded images" >> $GITHUB_STEP_SUMMARY
+          echo "4. **final_article.html** - HTML article with embedded styling" >> $GITHUB_STEP_SUMMARY
+          echo "5. **deliverables_summary.md** - Complete package summary" >> $GITHUB_STEP_SUMMARY
+          echo "6. **images/** - Generated images (optional)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
@@ -1027,7 +880,7 @@ jobs:
           # 1. メイン記事 (HTML) - アーティファクトから検索
           ARTICLE_FOUND=false
           
-          # 複数の場所から記事ファイルを検索
+          # 複数の場所から記事ファイルを検索（Prompt_v2準拠）
           POSSIBLE_ARTICLES=(
             "$ARTICLE_DIR/final_article.html"
             "$ARTICLE_DIR/article.html"
@@ -1037,7 +890,7 @@ jobs:
           
           for article_path in "${POSSIBLE_ARTICLES[@]}"; do
             if [ -f "$article_path" ]; then
-              cp "$article_path" "$FINAL_DIR/article.html"
+              cp "$article_path" "$FINAL_DIR/final_article.html"
               echo "✅ Found and copied article: $article_path ($(wc -c < "$article_path") bytes)"
               ARTICLE_FOUND=true
               break
@@ -1049,7 +902,7 @@ jobs:
             echo "⚠️ Standard article files not found, searching for any .html files..."
             HTML_FILE=$(find . -name "*.html" -type f ! -name "index.html" | head -1)
             if [ -n "$HTML_FILE" ]; then
-              cp "$HTML_FILE" "$FINAL_DIR/article.html"
+              cp "$HTML_FILE" "$FINAL_DIR/final_article.html"
               echo "✅ Using fallback .html file: $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
               ARTICLE_FOUND=true
             fi
@@ -1058,7 +911,7 @@ jobs:
           if [ "$ARTICLE_FOUND" = false ]; then
             echo "❌ ERROR: No article file found in any location!"
             echo "Creating minimal article as last resort..."
-            echo '<div class="article-content"><h2>記事生成エラー</h2><p>記事ファイルが見つかりませんでした。ワークフローの実行ログを確認してください。</p></div>' > "$FINAL_DIR/article.html"
+            echo '<div class="article-content"><h2>記事生成エラー</h2><p>記事ファイルが見つかりませんでした。ワークフローの実行ログを確認してください。</p></div>' > "$FINAL_DIR/final_article.html"
           fi
           
           # 2. リサーチ結果 - 複数の場所から検索
@@ -1200,9 +1053,11 @@ jobs:
           ls -la "$FINAL_DIR/images/" 2>/dev/null || echo "No images directory created"
           
           
-          # V4成果物説明
-          if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
-            cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables.md"
+          # 成果物説明書（Prompt_v2準拠）
+          if [ -f "$ARTICLE_DIR/deliverables_summary.md" ]; then
+            cp "$ARTICLE_DIR/deliverables_summary.md" "$FINAL_DIR/deliverables_summary.md"
+          elif [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
+            cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables_summary.md"
           fi
           
           # 最終パッケージの内容確認
@@ -1211,19 +1066,20 @@ jobs:
           find "$FINAL_DIR" -type f -exec ls -la {} \;
           
           # README作成
-          echo "# V4 記事生成完了パッケージ（制作向け簡易版）" > "$FINAL_DIR/README.md"
+          echo "# V4 記事生成完了パッケージ（Prompt_v2準拠）" > "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "**記事タイトル**: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
           echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
           echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "## 📁 V4成果物（5点）" >> "$FINAL_DIR/README.md"
+          echo "## 📁 成果物（Prompt_v2準拠）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "1. **article.html** - 記事本文（HTML形式、画像配置済み）" >> "$FINAL_DIR/README.md"
+          echo "1. **final_article.html** - 記事本文（HTML形式、Prompt_v2スタイル準拠）" >> "$FINAL_DIR/README.md"
           echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
           echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
           echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
-          echo "5. **images/** - 生成画像（各セクション用）" >> "$FINAL_DIR/README.md"
+          echo "5. **deliverables_summary.md** - 成果物説明書" >> "$FINAL_DIR/README.md"
+          echo "6. **images/** - 生成画像（オプション）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
@@ -1232,9 +1088,10 @@ jobs:
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📝 備考" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "- **article.html**: 指定テンプレート形式のHTML（<div class=\"article-content\">で開始）" >> "$FINAL_DIR/README.md"
-          echo "- 画像は各セクションに配置済み" >> "$FINAL_DIR/README.md"
-          echo "- 追加のスタイルやSEO構造化が必要な場合は制作側で実施してください" >> "$FINAL_DIR/README.md"
+          echo "- **final_article.html**: Prompt_v2/article-style.md準拠のHTML" >> "$FINAL_DIR/README.md"
+          echo "- CSSクラス名はPrompt_v2仕様書に従って設定" >> "$FINAL_DIR/README.md"
+          echo "- WordPressのHTMLブロックに直接貼り付け可能" >> "$FINAL_DIR/README.md"
+          echo "- 画像生成は有効化設定により生成（オプション）" >> "$FINAL_DIR/README.md"
           
           echo "📦 V4 final package created in: $FINAL_DIR"
           ls -la $FINAL_DIR/
