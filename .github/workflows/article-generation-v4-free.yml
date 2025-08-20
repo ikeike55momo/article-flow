@@ -4,19 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       article_title:
-        description: '記事タイトル'
+        description: 'タイトル案（30〜32字）'
         required: true
         type: string
         default: ''
       
-      target_persona:
-        description: 'ターゲットペルソナ（例：30代女性、健康意識が高い、子育て中）'
+      main_keywords:
+        description: '主要KW（最大3語、カンマ区切り）'
         required: true
         type: string
         default: ''
       
-      meta_keywords:
-        description: 'メタキーワード（カンマ区切り）'
+      approach_target:
+        description: '切り口・ターゲット'
+        required: true
+        type: string
+        default: ''
+      
+      eeat_elements:
+        description: 'E-E-A-T要素（Experience, Expertise, Authoritativeness, Trustworthiness）'
         required: true
         type: string
         default: ''
@@ -68,8 +74,9 @@ jobs:
           echo '{' > "output/${ARTICLE_ID}/input_params.json"
           echo "  \"article_id\": \"${ARTICLE_ID}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"title\": \"${{ inputs.article_title }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"target_persona\": \"${{ inputs.target_persona }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"meta_keywords\": \"${{ inputs.meta_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"main_keywords\": \"${{ inputs.main_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"approach_target\": \"${{ inputs.approach_target }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"eeat_elements\": \"${{ inputs.eeat_elements }}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"word_count\": \"${{ inputs.word_count }}\"," >> "output/${ARTICLE_ID}/input_params.json"
           echo "  \"created_at\": \"${TIMESTAMP}\"" >> "output/${ARTICLE_ID}/input_params.json"
           echo '}' >> "output/${ARTICLE_ID}/input_params.json"
@@ -116,8 +123,10 @@ jobs:
           # Phase1が期待する形式のJSONを作成
           echo '{' > request_params.json
           echo "  \"topic\": \"${{ inputs.article_title }}\"," >> request_params.json
-          echo "  \"target_audience\": \"${{ inputs.target_persona }}\"," >> request_params.json
-          echo "  \"keywords\": \"${{ inputs.meta_keywords }}\"" >> request_params.json
+          echo "  \"main_keywords\": \"${{ inputs.main_keywords }}\"," >> request_params.json
+          echo "  \"approach_target\": \"${{ inputs.approach_target }}\"," >> request_params.json
+          echo "  \"eeat_elements\": \"${{ inputs.eeat_elements }}\"," >> request_params.json
+          echo "  \"word_count\": \"${{ inputs.word_count }}\"" >> request_params.json
           echo '}' >> request_params.json
 
       - name: Run Phase 1 Analysis with Claude
@@ -134,8 +143,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "5"
@@ -164,11 +174,12 @@ jobs:
               # Create fallback analysis if Claude didn't create the file
               TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
               TITLE="${{ inputs.article_title }}"
-              PERSONA="${{ inputs.target_persona }}"
-              KEYWORDS="${{ inputs.meta_keywords }}"
+              APPROACH="${{ inputs.approach_target }}"
+              KEYWORDS="${{ inputs.main_keywords }}"
+              EEAT="${{ inputs.eeat_elements }}"
               
               # 外部スクリプトを使用してJSONを作成
-              TITLE="${TITLE}" PERSONA="${PERSONA}" KEYWORDS="${KEYWORDS}" TIMESTAMP="${TIMESTAMP}" OUTPUT_DIR="." python3 ../../github-actions/scripts/create_phase1_fallback.py
+              TITLE="${TITLE}" APPROACH="${APPROACH}" KEYWORDS="${KEYWORDS}" EEAT="${EEAT}" TIMESTAMP="${TIMESTAMP}" OUTPUT_DIR="." python3 ../../github-actions/scripts/create_phase1_fallback.py
             fi
           fi
           
@@ -337,8 +348,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "10"
@@ -382,8 +394,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "15"
@@ -482,8 +495,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORKSPACE=${{ github.workspace }}
           
           max_turns: "10"
@@ -569,8 +583,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORD_COUNT=${{ inputs.word_count }}
             WORKSPACE=${{ github.workspace }}
           
@@ -782,8 +797,9 @@ jobs:
           claude_env: |
             ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
             ARTICLE_TITLE=${{ inputs.article_title }}
-            TARGET_PERSONA=${{ inputs.target_persona }}
-            META_KEYWORDS=${{ inputs.meta_keywords }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
             WORD_COUNT=${{ inputs.word_count }}
           
           max_turns: "10"
@@ -798,9 +814,10 @@ jobs:
           echo "## 📝 Article Generation V4 Free Summary (Prompt_v3)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Input Parameters" >> $GITHUB_STEP_SUMMARY
-          echo "- **Title**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Persona**: ${{ inputs.target_persona }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Keywords**: ${{ inputs.meta_keywords }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイトル案**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### 🎯 V4 Free Deliverables (Prompt_v3準拠)" >> $GITHUB_STEP_SUMMARY
@@ -1081,10 +1098,11 @@ jobs:
           echo "5. **deliverables_summary.md** - 成果物説明書" >> "$FINAL_DIR/README.md"
           echo "6. **images/** - 生成画像（オプション）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
+          echo "## 🎯 記事パラメータ" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "- **ペルソナ**: ${{ inputs.target_persona }}" >> "$FINAL_DIR/README.md"
-          echo "- **キーワード**: ${{ inputs.meta_keywords }}" >> "$FINAL_DIR/README.md"
+          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> "$FINAL_DIR/README.md"
+          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> "$FINAL_DIR/README.md"
+          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📝 備考" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
