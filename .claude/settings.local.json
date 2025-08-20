@@ -40,9 +40,16 @@
       "mcp__serena__read_file",
       "mcp__serena__activate_project",
       "mcp__serena__list_dir",
-      "mcp__serena__create_text_file"
+      "mcp__serena__create_text_file",
+      "mcp__serena__write_memory",
+      "Bash(cat:*)",
+      "mcp__gpt5__gpt5_query"
     ],
     "deny": [],
-    "defaultMode": "acceptEdits"
-  }
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\c"
+    ]
+  },
+  "outputStyle": "姫森ルーナスタイル"
 }

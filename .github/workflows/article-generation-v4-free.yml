@@ -1,4 +1,4 @@
-name: Article Generation V4 Free (Prompt_v3)
+name: Article Generation V4 Free (New Architecture - Prompt_v3)
 
 on:
   workflow_dispatch:
@@ -38,1088 +38,374 @@ on:
         required: false
         type: boolean
         default: true
-      
-      # Google Drive upload removed
 
 env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # ジョブ1: 初期化
+  # ジョブ1: 初期化とセットアップ（v3専用）
   initialize:
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 5
     outputs:
       article_id: ${{ steps.init.outputs.article_id }}
+      profile: 'v3'
       
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Initialize article generation
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          pip install anthropic pyyaml pathlib
+          # v3専用の依存関係があれば追加
+
+      - name: Initialize article generation (v3 strict mode)
         id: init
         run: |
-          # タイトルからIDを生成
-          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-50)
-          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_${CLEAN_TITLE}
+          # 記事IDを生成（v3識別子付き）
+          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-30)
+          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_v3_${CLEAN_TITLE}
+          
           echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
+          
           echo "Article ID: ${ARTICLE_ID}"
+          echo "Profile: v3 (Strict Template Compliance)"
           
           # 出力ディレクトリ作成
-          mkdir -p output/${ARTICLE_ID}
+          mkdir -p "output/${ARTICLE_ID}"
           
-          # 入力情報を保存
-          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo '{' > "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"article_id\": \"${ARTICLE_ID}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"title\": \"${{ inputs.article_title }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"main_keywords\": \"${{ inputs.main_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"approach_target\": \"${{ inputs.approach_target }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"eeat_elements\": \"${{ inputs.eeat_elements }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"word_count\": \"${{ inputs.word_count }}\"," >> "output/${ARTICLE_ID}/input_params.json"
-          echo "  \"created_at\": \"${TIMESTAMP}\"" >> "output/${ARTICLE_ID}/input_params.json"
-          echo '}' >> "output/${ARTICLE_ID}/input_params.json"
+          # v3用の厳密な入力パラメータ検証
+          TITLE_LENGTH=$(echo -n "${{ inputs.article_title }}" | wc -m)
+          KEYWORDS_COUNT=$(echo "${{ inputs.main_keywords }}" | tr ',' '\n' | wc -l)
+          
+          echo "Title length: ${TITLE_LENGTH} characters"
+          echo "Keywords count: ${KEYWORDS_COUNT}"
+          
+          # v3品質チェック
+          if [ ${TITLE_LENGTH} -lt 30 ] || [ ${TITLE_LENGTH} -gt 32 ]; then
+            echo "WARNING: Title length ${TITLE_LENGTH} is outside optimal range (30-32 characters)"
+          fi
+          
+          if [ ${KEYWORDS_COUNT} -gt 3 ]; then
+            echo "WARNING: Too many keywords (${KEYWORDS_COUNT}), maximum 3 recommended"
+          fi
+          
+          # 入力パラメータファイル作成（v3対応）
+          cat > "output/${ARTICLE_ID}/input_params.json" << EOF
+          {
+            "article_id": "${ARTICLE_ID}",
+            "title": "${{ inputs.article_title }}",
+            "main_keywords": "${{ inputs.main_keywords }}",
+            "approach_target": "${{ inputs.approach_target }}",
+            "eeat_elements": "${{ inputs.eeat_elements }}",
+            "word_count": "${{ inputs.word_count }}",
+            "profile": "v3",
+            "template_compliance_mode": "strict",
+            "enable_image_generation": ${{ inputs.enable_image_generation }},
+            "quality_threshold": 90,
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Validate inputs (v3 strict mode)
+        run: |
+          # v3の厳密な入力検証
+          python -m article_flow.cli \
+            --profile "v3" \
+            --title "${{ inputs.article_title }}" \
+            --main-keywords "${{ inputs.main_keywords }}" \
+            --approach-target "${{ inputs.approach_target }}" \
+            --eeat-elements "${{ inputs.eeat_elements }}" \
+            --word-count "${{ inputs.word_count }}" \
+            --prompt-dir "Prompt_v3" \
+            --output-dir "output/${{ steps.init.outputs.article_id }}" \
+            --config "article_flow/config/v3.yaml" \
+            --dry-run \
+            --log-level "INFO"
+          
+          echo "v3 strict validation completed ✅"
 
       - name: Upload initialization artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: init-${{ steps.init.outputs.article_id }}
+          name: init-v3-${{ steps.init.outputs.article_id }}
           path: output/${{ steps.init.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ2: リクエスト分析
-  analysis:
+  # ジョブ2: 記事生成（v3厳密モード）
+  generate_article:
     needs: initialize
     runs-on: ubuntu-latest
     environment: GA
-    timeout-minutes: 10
+    timeout-minutes: 45  # v3は品質重視で長めのタイムアウト
     outputs:
-      main_keyword: ${{ steps.analyze.outputs.main_keyword }}
+      generation_status: ${{ steps.generate.outputs.status }}
+      quality_score: ${{ steps.generate.outputs.quality_score }}
       
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          pip install anthropic pyyaml pathlib
+          # v3で必要な追加依存関係
+
       - name: Download initialization artifacts
         uses: actions/download-artifact@v4
         with:
-          name: init-${{ needs.initialize.outputs.article_id }}
+          name: init-v3-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          cd github-actions
-          pip install -r requirements.txt
-
-      - name: Create analysis input
-        run: |
-          cd output/${{ needs.initialize.outputs.article_id }}
-          # Phase1が期待する形式のJSONを作成
-          echo '{' > request_params.json
-          echo "  \"topic\": \"${{ inputs.article_title }}\"," >> request_params.json
-          echo "  \"main_keywords\": \"${{ inputs.main_keywords }}\"," >> request_params.json
-          echo "  \"approach_target\": \"${{ inputs.approach_target }}\"," >> request_params.json
-          echo "  \"eeat_elements\": \"${{ inputs.eeat_elements }}\"," >> request_params.json
-          echo "  \"word_count\": \"${{ inputs.word_count }}\"" >> request_params.json
-          echo '}' >> request_params.json
-
-      - name: Run Phase 1 Analysis with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt_file: Prompt_v3/CHAT_01_phase1_analysis.md
-          
-          allowed_tools: |
-            Read,
-            Write
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORD_COUNT=${{ inputs.word_count }}
-          
-          max_turns: "5"
-      
-      - name: Verify and prepare analysis results
-        run: |
-          echo "🔍 Checking for analysis files..."
-          echo "Current working directory: $(pwd)"
-          echo "Files in root:"
-          ls -la
-          echo "Files in output directory:"
-          ls -la output/${{ needs.initialize.outputs.article_id }}/
-          
-          cd output/${{ needs.initialize.outputs.article_id }}
-          if [ -f "phase1_output.json" ]; then
-            echo "✅ Phase 1 analysis file found"
-            cat phase1_output.json
-          else
-            echo "⚠️ Phase 1 analysis file not found, creating default"
-            # Check if file was created in root directory by mistake
-            if [ -f "../../phase1_output.json" ]; then
-              echo "📁 Found phase1_output.json in root, moving to correct location"
-              mv ../../phase1_output.json ./phase1_output.json
-            else
-              echo "🔧 Creating fallback analysis file"
-              # Create fallback analysis if Claude didn't create the file
-              TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-              TITLE="${{ inputs.article_title }}"
-              APPROACH="${{ inputs.approach_target }}"
-              KEYWORDS="${{ inputs.main_keywords }}"
-              EEAT="${{ inputs.eeat_elements }}"
-              
-              # 外部スクリプトを使用してJSONを作成
-              TITLE="${TITLE}" APPROACH="${APPROACH}" KEYWORDS="${KEYWORDS}" EEAT="${EEAT}" TIMESTAMP="${TIMESTAMP}" OUTPUT_DIR="." python3 ../../github-actions/scripts/create_phase1_fallback.py
-            fi
-          fi
-          
-          echo "📋 Final verification - files in current directory:"
-          ls -la
-
-      - name: Split research queries into batches
-        id: analyze
-        run: |
-          # クエリを5バッチに分割
-          cd output/${{ needs.initialize.outputs.article_id }}
-          python3 ../../github-actions/scripts/split_research_queries.py
-          
-          # メインキーワードを出力
-          if [ -f "research_meta.json" ]; then
-            MAIN_KW=$(python -c "import json; print(json.load(open('research_meta.json'))['main_keyword'])")
-            echo "main_keyword=${MAIN_KW}" >> $GITHUB_OUTPUT
-          fi
+      - name: Generate article using v3 strategy
+        id: generate
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ENABLE_GEMINI_RESEARCH: "true"
-
-      - name: Upload analysis artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: analysis-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-          retention-days: 30
-
-  # ジョブ3: リサーチ（Gemini使用 - 並列実行）
-  research:
-    needs: [initialize, analysis]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        batch: [0, 1, 2]  # Reduced to 3 batches to match max-parallel
-      max-parallel: 3  # Balanced for rate limiting with gemini-2.5-flash
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download initialization artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: init-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Download analysis artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: analysis-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
+          # v3固有の環境変数も設定
         run: |
-          cd github-actions
-          pip install -r requirements.txt
+          echo "🚀 Starting v3 strict article generation"
+          echo "Template: ARTICLE-TEMPLATE-README.md compliance required"
+          echo "Quality threshold: 90+ points"
+          echo ""
           
-      - name: Install Gemini API dependencies  
-        run: |
-          pip install google-genai
-
-      - name: Research with Gemini (Batch ${{ matrix.batch }})
-        run: |
-          cd output/${{ needs.initialize.outputs.article_id }}
+          # v3 Strategy でフルパイプライン実行
+          python -m article_flow.cli \
+            --profile "v3" \
+            --title "${{ inputs.article_title }}" \
+            --main-keywords "${{ inputs.main_keywords }}" \
+            --approach-target "${{ inputs.approach_target }}" \
+            --eeat-elements "${{ inputs.eeat_elements }}" \
+            --word-count "${{ inputs.word_count }}" \
+            --prompt-dir "Prompt_v3" \
+            --output-dir "output/${{ needs.initialize.outputs.article_id }}" \
+            --config "article_flow/config/v3.yaml" \
+            --enable-image-generation="${{ inputs.enable_image_generation }}" \
+            --log-level "INFO" \
+            --article-id "${{ needs.initialize.outputs.article_id }}"
           
-          # バッチ用の分析ファイルを作成
-          BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
+          # 実行結果と品質チェック
+          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
           
-          # バッチクエリを読み込んでGemini APIで直接検索（外部スクリプト使用）
-          python3 ../../github-actions/scripts/research_batch_gemini.py ${{ matrix.batch }}
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-      - name: Upload research batch artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: research-batch-${{ matrix.batch }}-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}
-          retention-days: 30
-
-  # ジョブ4: リサーチ結果の統合
-  research-merge:
-    needs: [initialize, research]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 10
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create output directory
-        run: mkdir -p output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Download all research batches
-        uses: actions/download-artifact@v4
-        with:
-          pattern: research-batch-*-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}/batches
-
-      - name: Download analysis artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: analysis-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-
-      - name: Merge research results
-        run: |
-          cd output/${{ needs.initialize.outputs.article_id }}
-          
-          # リサーチ結果を統合してV4出力形式にする
-          python3 ../../github-actions/scripts/merge_research_results.py
-          
-          # V4用にファイル名を変更
-          if [ -f "phase2_research.json" ]; then
-            mv phase2_research.json research_results.json
-            echo "✅ Created research_results.json for V4"
-          fi
-
-      - name: Upload merged research artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: research-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-          retention-days: 30
-
-  # ジョブ5: 記事構成の生成（SEO削除版）
-  generate-structure:
-    needs: [initialize, analysis, research-merge]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 15
-      
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
-          path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
-
-      - name: Generate article structure with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt_file: Prompt_v3/CHAT_02_structure_generation.md
-          
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORD_COUNT=${{ inputs.word_count }}
-          
-          max_turns: "10"
-
-      - name: Upload structure artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: structure-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-          retention-days: 30
-
-  # ジョブ6: 記事本文の生成（MD専用）
-  generate-content:
-    needs: [initialize, generate-structure]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 20
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
-          path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
-
-      - name: Generate article content with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt_file: Prompt_v3/CHAT_03_content_generation_v3.md
-          
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORD_COUNT=${{ inputs.word_count }}
-          
-          max_turns: "15"
-
-      - name: Verify article generation with fallback
-        id: verify-article
-        run: |
-          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
-          echo "🔍 Checking for generated article file..."
-          
-          if [ -f "$ARTICLE_DIR/final_article.html" ]; then
-            echo "✅ Found final_article.html"
-            echo "article_found=true" >> $GITHUB_OUTPUT
-            echo "fallback_used=false" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ Primary generation failed, checking for fallback..."
-            echo "📁 Contents of $ARTICLE_DIR:"
-            ls -la "$ARTICLE_DIR/" || echo "Directory not found"
+          if [ -f "$RESULT_FILE" ]; then
+            # v3品質スコアを抽出
+            QUALITY_SCORE=$(python -c "
+            import json
+            try:
+                with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
+                    result = json.load(f)
+                phases = result.get('phases', {})
+                factcheck = phases.get('phase4', {})
+                if factcheck:
+                    score = factcheck.get('overall_score', 0)
+                    template_score = factcheck.get('template_compliance_score', 0)
+                    print(f'{score}')
+                else:
+                    print('0')
+            except:
+                print('0')
+            ")
             
-            # Check if any HTML file exists
-            if [ -f "$ARTICLE_DIR/article.html" ]; then
-              mv "$ARTICLE_DIR/article.html" "$ARTICLE_DIR/final_article.html"
-              echo "✅ Found article.html, renamed to final_article.html"
-              echo "article_found=true" >> $GITHUB_OUTPUT
-              echo "fallback_used=false" >> $GITHUB_OUTPUT
+            echo "quality_score=${QUALITY_SCORE}" >> $GITHUB_OUTPUT
+            echo "Quality Score: ${QUALITY_SCORE}"
+            
+            # v3品質基準チェック（90点以上）
+            if [ "$QUALITY_SCORE" -ge 90 ]; then
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "✅ v3 Article generation completed with high quality (${QUALITY_SCORE}/100)"
             else
-              echo "❌ ERROR: No HTML article generated!"
-              echo "article_found=false" >> $GITHUB_OUTPUT
+              echo "status=failed" >> $GITHUB_OUTPUT
+              echo "❌ v3 Quality score ${QUALITY_SCORE} below v3 threshold (90+)"
               exit 1
             fi
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ v3 Article generation failed - no result file"
+            exit 1
           fi
 
-      - name: Upload content artifacts
+      - name: Validate v3 template compliance
+        run: |
+          # v3特有のテンプレート準拠検証
+          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
+          
+          echo "🔍 Validating ARTICLE-TEMPLATE-README.md compliance..."
+          
+          python -c "
+          import json
+          
+          with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
+              result = json.load(f)
+          
+          phases = result.get('phases', {})
+          
+          # Phase 3 (content) のテンプレート準拠チェック
+          content_phase = phases.get('phase3', {})
+          if content_phase:
+              template_score = content_phase.get('template_adherence_score', 0)
+              html_quality = content_phase.get('html_quality_score', 0)
+              
+              print(f'Template Adherence Score: {template_score}')
+              print(f'HTML Quality Score: {html_quality}')
+              
+              if template_score >= 90 and html_quality >= 90:
+                  print('✅ v3 Template compliance verified')
+              else:
+                  print('❌ v3 Template compliance failed')
+                  print(f'Required: Template≥90, HTML≥90')
+                  print(f'Actual: Template={template_score}, HTML={html_quality}')
+                  exit(1)
+          else:
+              print('❌ Content phase results not found')
+              exit(1)
+          "
+
+      - name: Generate v3 quality report
+        run: |
+          # v3専用の詳細品質レポート生成
+          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
+          REPORT_FILE="output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md"
+          
+          python -c "
+          import json
+          from datetime import datetime
+          
+          with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
+              result = json.load(f)
+          
+          phases = result.get('phases', {})
+          
+          # v3品質レポート作成
+          report = []
+          report.append('# V3 Article Generation Quality Report')
+          report.append('')
+          report.append(f'**Generated:** {datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")}')
+          report.append(f'**Article ID:** {result.get(\"article_id\", \"Unknown\")}')
+          report.append(f'**Strategy:** v3 (Strict Template Compliance)')
+          report.append('')
+          
+          # 品質メトリクス詳細
+          factcheck = phases.get('phase4', {})
+          if factcheck and 'factcheck_results' in factcheck:
+              fc = factcheck['factcheck_results']
+              report.append('## Quality Metrics')
+              report.append('')
+              report.append(f'| Metric | Score | Status |')
+              report.append(f'|--------|-------|--------|')
+              report.append(f'| Overall Score | {fc.get(\"overall_score\", \"N/A\")} | {'✅' if fc.get(\"overall_score\", 0) >= 90 else '❌'} |')
+              report.append(f'| Factual Accuracy | {fc.get(\"factual_accuracy\", \"N/A\")} | {'✅' if fc.get(\"factual_accuracy\", 0) >= 90 else '❌'} |')
+              report.append(f'| Regulatory Compliance | {fc.get(\"regulatory_compliance\", \"N/A\")} | {'✅' if fc.get(\"regulatory_compliance\", 0) >= 95 else '❌'} |')
+              report.append(f'| Template Compliance | {fc.get(\"template_compliance\", \"N/A\")} | {'✅' if fc.get(\"template_compliance\", 0) >= 90 else '❌'} |')
+              report.append('')
+          
+          # テンプレート準拠詳細
+          content_phase = phases.get('phase3', {})
+          if content_phase:
+              report.append('## Template Compliance Details')
+              report.append('')
+              report.append(f'- **HTML Quality Score:** {content_phase.get(\"html_quality_score\", \"N/A\")}')
+              report.append(f'- **Template Adherence Score:** {content_phase.get(\"template_adherence_score\", \"N/A\")}')
+              report.append(f'- **Quality Status:** {'✅ Passed' if content_phase.get(\"quality_passed\", False) else '❌ Failed'}')
+              report.append('')
+          
+          # v3認定
+          overall_quality = factcheck.get('factcheck_results', {}).get('overall_score', 0) if factcheck else 0
+          template_quality = content_phase.get('template_adherence_score', 0) if content_phase else 0
+          
+          if overall_quality >= 90 and template_quality >= 90:
+              report.append('## ✅ V3 CERTIFICATION ACHIEVED')
+              report.append('')
+              report.append('This article meets v3 strict quality standards:')
+              report.append('- ✅ Overall Quality ≥ 90 points')
+              report.append('- ✅ Template Compliance ≥ 90 points') 
+              report.append('- ✅ ARTICLE-TEMPLATE-README.md adherence')
+          else:
+              report.append('## ❌ V3 CERTIFICATION FAILED')
+              report.append('')
+              report.append('Article did not meet v3 quality requirements.')
+          
+          with open('$REPORT_FILE', 'w', encoding='utf-8') as f:
+              f.write('\\n'.join(report))
+          
+          print('V3 Quality Report generated')
+          "
+
+      - name: Upload v3 generation results
         uses: actions/upload-artifact@v4
         with:
-          name: content-${{ needs.initialize.outputs.article_id }}
+          name: article-v3-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ7: ファクトチェック（品質スコア付き）
-  factcheck:
-    needs: [initialize, generate-content]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 15
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
-          path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
-
-      - name: Debug - Check files before factcheck
-        run: |
-          echo "📁 Files before factcheck:"
-          ls -la output/${{ needs.initialize.outputs.article_id }}/
-          echo ""
-          echo "🔧 Environment variables:"
-          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
-          echo "WORKSPACE: ${{ github.workspace }}"
-          echo "Expected factcheck path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json"
-          echo ""
-          echo "📄 Checking final_article.md:"
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
-            echo "✅ final_article.md exists"
-            wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.md
-          else
-            echo "❌ final_article.md NOT found"
-          fi
-          echo ""
-          echo "📄 Checking research_results.json:"
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/research_results.json" ]; then
-            echo "✅ research_results.json exists"
-            wc -l output/${{ needs.initialize.outputs.article_id }}/research_results.json
-          else
-            echo "❌ research_results.json NOT found"
-          fi
-
-      - name: Fact-check article with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt_file: Prompt_v3/CHAT_04_factcheck.md
-          
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORKSPACE=${{ github.workspace }}
-          
-          max_turns: "10"
-
-      - name: Debug - Check Claude execution
-        run: |
-          echo "🔍 Post-Claude execution check:"
-          echo "Working directory: $(pwd)"
-          echo ""
-          echo "📁 All files in output directory after Claude:"
-          ls -la output/${{ needs.initialize.outputs.article_id }}/
-          echo ""
-          echo "🔍 Looking for any JSON files created:"
-          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
-
-      - name: Verify factcheck output
-        run: |
-          echo "🔍 Checking factcheck output..."
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json" ]; then
-            echo "✅ factcheck_report.json created successfully"
-            ls -la output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json
-          else
-            echo "❌ factcheck_report.json NOT found!"
-            echo "📁 Contents of output directory:"
-            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
-          fi
-
-      - name: Upload factcheck artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: factcheck-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-          retention-days: 30
-
-  # ジョブ8: SEOメタ情報生成
-  generate-seo-meta:
-    needs: [initialize, analysis, generate-content]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 10
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
-          path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
-
-      - name: Debug - Check files before SEO
-        run: |
-          echo "📁 Files before SEO metadata generation:"
-          ls -la output/${{ needs.initialize.outputs.article_id }}/
-          echo ""
-          echo "🔧 Environment variables:"
-          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
-          echo "WORKSPACE: ${{ github.workspace }}"
-          echo "Expected SEO path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json"
-          echo ""
-          echo "📄 Checking required files:"
-          for file in final_article.md input_params.json phase1_output.json; do
-            if [ -f "output/${{ needs.initialize.outputs.article_id }}/$file" ]; then
-              echo "✅ $file exists"
-            else
-              echo "❌ $file NOT found"
-            fi
-          done
-
-      - name: Generate SEO metadata with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt_file: Prompt_v3/CHAT_05_seo_metadata.md
-          
-          allowed_tools: |
-            Read,
-            Write
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORD_COUNT=${{ inputs.word_count }}
-            WORKSPACE=${{ github.workspace }}
-          
-          max_turns: "30"
-
-      - name: Debug - Check Claude execution for SEO
-        run: |
-          echo "🔍 Post-Claude SEO execution check:"
-          echo "Working directory: $(pwd)"
-          echo ""
-          echo "📁 All files in output directory after Claude SEO:"
-          ls -la output/${{ needs.initialize.outputs.article_id }}/
-          echo ""
-          echo "🔍 Looking for any JSON files created:"
-          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
-
-      - name: Verify SEO metadata output
-        run: |
-          echo "🔍 Checking SEO metadata output..."
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json" ]; then
-            echo "✅ seo_metadata.json created successfully"
-            ls -la output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json
-          else
-            echo "❌ seo_metadata.json NOT found!"
-            echo "📁 Contents of output directory:"
-            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
-          fi
-
-      - name: Upload SEO metadata artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: seo-meta-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}
-          retention-days: 30
-
-  # ジョブ9: 画像生成（MCP + Imagen4）
-  generate-images:
-    if: ${{ inputs.enable_image_generation }}
-    needs: [initialize, generate-structure]
-    runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 20
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
-          path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
-
-      - name: Generate Images with Claude + MCP Imagen4
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt: |
-            記事に最適な画像を複数枚生成してください。合計4-5枚の画像を生成します。
-            
-            タスク:
-            1. 記事内容を理解:
-               - input_params.json でペルソナを確認
-               - final_article.md で記事内容を把握（あれば）
-               - 01_article_structure.md で構成を理解
-            
-            2. 以下の手順で個別に画像を生成:
-               
-               **ステップ1**: ヒーロー画像（16:9）を生成
-               - mcp__gemini-imagen__generate_image を使用
-               - プロンプト: "記事全体のイメージを表現する16:9のヒーロー画像"
-               - ペルソナに合わせたメインビジュアル
-               
-               **ステップ2**: セクション画像1（4:3）を生成  
-               - mcp__gemini-imagen__generate_image を使用
-               - プロンプト: "記事の導入部分を表現する4:3の画像"
-               
-               **ステップ3**: セクション画像2（4:3）を生成
-               - mcp__gemini-imagen__generate_image を使用  
-               - プロンプト: "記事の方法・手順部分を表現する4:3の画像"
-               
-               **ステップ4**: セクション画像3（4:3）を生成
-               - mcp__gemini-imagen__generate_image を使用
-               - プロンプト: "記事の結果・効果部分を表現する4:3の画像"
-               
-               **ステップ5**: セクション画像4（4:3）を生成
-               - mcp__gemini-imagen__generate_image を使用
-               - プロンプト: "記事のまとめ部分を表現する4:3の画像"
-            
-            3. 画像生成の方針（全画像共通）:
-               - ペルソナの年代・性別に合わせたビジュアル
-               - 清潔感と信頼感のあるデザイン
-               - 記事内容と調和したカラーパレット
-               - テキストやロゴは含まない
-               - imagen-4 または imagen-4-ultra を使用
-            
-            4. メタデータ作成:
-               - images/metadata.json に生成情報を記録
-               - 各画像のプロンプト、用途、サイズを記載
-               
-            重要: 必ず5回のmcp__gemini-imagen__generate_imageを実行して、複数枚の画像を生成してください。
-          
-          mcp_config: |
-            {
-              "mcpServers": {
-                "gemini-imagen": {
-                  "command": "npx",
-                  "args": [
-                    "-y", 
-                    "gemini-imagen-mcp-server",
-                    "--model", "imagen-4"
-                  ],
-                  "env": {
-                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
-                  }
-                }
-              }
-            }
-          
-          allowed_tools: |
-            Read,
-            Write,
-            mcp__gemini-imagen__generate_image,
-            mcp__gemini-imagen__list_models
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-          
-          max_turns: "30"
-
-      - name: Process generated images
-        run: |
-          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
-          IMAGE_DIR="${ARTICLE_DIR}/images"
-          
-          # MCPサーバーは imagen/ ディレクトリに保存する
-          if [ -d "imagen" ] && [ "$(ls -A imagen 2>/dev/null)" ]; then
-            echo "✅ Images found in imagen directory:"
-            ls -la imagen/
-            
-            # 画像を記事ディレクトリにコピー
-            mkdir -p $IMAGE_DIR
-            cp imagen/*.png $IMAGE_DIR/ 2>/dev/null || true
-            cp imagen/*.jpg $IMAGE_DIR/ 2>/dev/null || true
-            
-            # リネーム（オプション）
-            cd $IMAGE_DIR
-            i=1
-            for img in *.png *.jpg; do
-              if [ -f "$img" ]; then
-                if [ $i -eq 1 ]; then
-                  mv "$img" "hero_image.png" 2>/dev/null || true
-                else
-                  mv "$img" "section_$((i-1))_image.png" 2>/dev/null || true
-                fi
-                i=$((i+1))
-              fi
-            done
-            cd -
-            
-            echo "Final images:"
-            ls -la $IMAGE_DIR
-          else
-            echo "⚠️ No images generated"
-          fi
-
-      - name: Upload image artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: images-${{ needs.initialize.outputs.article_id }}
-          path: |
-            output/${{ needs.initialize.outputs.article_id }}/images
-            imagen/
-          retention-days: 30
-
-  # ジョブ10: 最終処理（5つの成果物）
+  # ジョブ3: v3結果分析と通知
   finalize:
-    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, generate-seo-meta, generate-images]
-    if: always()
+    needs: [initialize, generate_article]
     runs-on: ubuntu-latest
-    environment: GA
-    timeout-minutes: 10
+    if: always()
+    timeout-minutes: 5
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
+      - name: Download v3 generation results
+        if: needs.generate_article.outputs.generation_status == 'success'
         uses: actions/download-artifact@v4
         with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          name: article-v3-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
-          merge-multiple: true
 
-      - name: Create final package with Claude
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          prompt_file: Prompt_v3/CHAT_06_finalize.md
-          
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            ARTICLE_TITLE=${{ inputs.article_title }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
-            WORD_COUNT=${{ inputs.word_count }}
-          
-          max_turns: "10"
-
-      # Google Drive upload removed - using GitHub Artifacts only
-
-      - name: Create workflow summary
-        if: always()
+      - name: Display v3 generation summary
+        if: needs.generate_article.outputs.generation_status == 'success'
         run: |
-          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          echo "## ✅ V3 Article Generation Completed"
+          echo ""
+          echo "**Strategy:** v3 (Strict Template Compliance)"
+          echo "**Article ID:** ${{ needs.initialize.outputs.article_id }}"
+          echo "**Title:** ${{ inputs.article_title }}"
+          echo "**Keywords:** ${{ inputs.main_keywords }}"
+          echo "**Target:** ${{ inputs.approach_target }}"
+          echo "**Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100"
+          echo ""
           
-          echo "## 📝 Article Generation V4 Free Summary (Prompt_v3)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Input Parameters" >> $GITHUB_STEP_SUMMARY
-          echo "- **タイトル案**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 🎯 V4 Free Deliverables (Prompt_v3準拠)" >> $GITHUB_STEP_SUMMARY
-          echo "1. **research_results.json** - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
-          echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
-          echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
-          echo "4. **final_article.html** - HTML article with embedded styling" >> $GITHUB_STEP_SUMMARY
-          echo "5. **deliverables_summary.md** - Complete package summary" >> $GITHUB_STEP_SUMMARY
-          echo "6. **images/** - Generated images (optional)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
-            echo "### 📊 Generation Summary" >> $GITHUB_STEP_SUMMARY
-            cat "$ARTICLE_DIR/V4_deliverables.md" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -d "$ARTICLE_DIR/images" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🖼️ Generated Images" >> $GITHUB_STEP_SUMMARY
-            echo "- Image count: $(find $ARTICLE_DIR/images -name "*.png" -o -name "*.jpg" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          # v3品質レポート表示
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md" ]; then
+            echo "### V3 Quality Report"
+            cat "output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md"
           fi
 
-      - name: Create organized final package
+      - name: Handle v3 generation failure
+        if: needs.generate_article.outputs.generation_status == 'failed'
         run: |
-          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
-          FINAL_DIR="final_package"
-          
-          # 詳細デバッグ: アーティファクトとファイルの確認
-          echo "====== FINAL PACKAGE CREATION DEBUG ======"
-          echo "🔍 ARTICLE_DIR: $ARTICLE_DIR"
-          echo "📁 Article directory check:"
-          [ -d "$ARTICLE_DIR" ] && echo "✅ Directory exists" || echo "❌ Directory NOT found"
-          
+          echo "## ❌ V3 Article Generation Failed"
           echo ""
-          echo "📋 All downloaded artifacts and files:"
-          find . -name "*.json" -o -name "*.md" -o -name "*.png" -o -name "*.jpg" | head -20
-          
+          echo "**Strategy:** v3 (Strict Template Compliance)"
+          echo "**Article ID:** ${{ needs.initialize.outputs.article_id }}"
+          echo "**Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100"
           echo ""
-          echo "🖼️ Specifically looking for images:"
-          echo "PNG files:"
-          find . -name "*.png" -type f 2>/dev/null | head -10
-          echo "JPG files:"
-          find . -name "*.jpg" -o -name "*.jpeg" -type f 2>/dev/null | head -10
+          echo "**Failure Reason:** Quality score below v3 threshold (90+ required)"
           echo ""
-          echo "Image directories:"
-          find . -name "images" -type d 2>/dev/null
-          find . -name "imagen" -type d 2>/dev/null
-          
-          echo ""
-          echo "🔍 Current working directory contents:"
-          ls -la
-          
-          echo ""
-          echo "🔍 Specifically looking for factcheck and SEO files:"
-          echo "Factcheck files:"
-          find . -name "*factcheck*" -type f 2>/dev/null || echo "No factcheck files found"
-          echo "SEO files:"
-          find . -name "*seo*" -type f 2>/dev/null || echo "No SEO files found"
-          
-          echo ""
-          echo "🔍 Output directory contents:"
-          if [ -d "output/" ]; then
-            find output/ -type f | head -20
-          else
-            echo "❌ No output directory found"
-          fi
-          
-          echo "=============================================="
-          
-          # 最終パッケージ用のディレクトリを作成
-          mkdir -p $FINAL_DIR
-          
-          # V4の4つの成果物を収集（アーティファクトから直接）
-          echo ""
-          echo "🔄 Collecting V4 deliverables from artifacts..."
-          
-          # 1. メイン記事 (HTML) - アーティファクトから検索
-          ARTICLE_FOUND=false
-          
-          # 複数の場所から記事ファイルを検索（Prompt_v3準拠）
-          POSSIBLE_ARTICLES=(
-            "$ARTICLE_DIR/final_article.html"
-            "$ARTICLE_DIR/article.html"
-            "final_article.html"
-            "article.html"
-          )
-          
-          for article_path in "${POSSIBLE_ARTICLES[@]}"; do
-            if [ -f "$article_path" ]; then
-              cp "$article_path" "$FINAL_DIR/final_article.html"
-              echo "✅ Found and copied article: $article_path ($(wc -c < "$article_path") bytes)"
-              ARTICLE_FOUND=true
-              break
-            fi
-          done
-          
-          # 記事が見つからない場合は.htmlファイルを検索
-          if [ "$ARTICLE_FOUND" = false ]; then
-            echo "⚠️ Standard article files not found, searching for any .html files..."
-            HTML_FILE=$(find . -name "*.html" -type f ! -name "index.html" | head -1)
-            if [ -n "$HTML_FILE" ]; then
-              cp "$HTML_FILE" "$FINAL_DIR/final_article.html"
-              echo "✅ Using fallback .html file: $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
-              ARTICLE_FOUND=true
-            fi
-          fi
-          
-          if [ "$ARTICLE_FOUND" = false ]; then
-            echo "❌ ERROR: No article file found in any location!"
-            echo "Creating minimal article as last resort..."
-            echo '<div class="article-content"><h2>記事生成エラー</h2><p>記事ファイルが見つかりませんでした。ワークフローの実行ログを確認してください。</p></div>' > "$FINAL_DIR/final_article.html"
-          fi
-          
-          # 2. リサーチ結果 - 複数の場所から検索
-          RESEARCH_LOCATIONS=(
-            "$ARTICLE_DIR/research_results.json"
-            "research_results.json"
-            "research-*.json"
-          )
-          
-          RESEARCH_FOUND=false
-          for loc in "${RESEARCH_LOCATIONS[@]}"; do
-            if [ -f "$loc" ]; then
-              cp "$loc" "$FINAL_DIR/research_results.json"
-              echo "✅ Found research results: $loc"
-              RESEARCH_FOUND=true
-              break
-            fi
-          done
-          
-          if [ "$RESEARCH_FOUND" = false ]; then
-            # 検索パターンを使用
-            RESEARCH_FILE=$(find . -name "*research*.json" | head -1)
-            if [ -n "$RESEARCH_FILE" ]; then
-              cp "$RESEARCH_FILE" "$FINAL_DIR/research_results.json"
-              echo "✅ Using research file: $RESEARCH_FILE"
-            else
-              echo "⚠️ No research results found"
-            fi
-          fi
-          
-          # 3. SEOメタデータ - 複数の場所から検索
-          SEO_LOCATIONS=(
-            "$ARTICLE_DIR/seo_metadata.json"
-            "seo_metadata.json"
-            "seo-*.json"
-          )
-          
-          SEO_FOUND=false
-          for loc in "${SEO_LOCATIONS[@]}"; do
-            if [ -f "$loc" ]; then
-              cp "$loc" "$FINAL_DIR/seo_metadata.json"
-              echo "✅ Found SEO metadata: $loc"
-              SEO_FOUND=true
-              break
-            fi
-          done
-          
-          if [ "$SEO_FOUND" = false ]; then
-            echo "⚠️ No SEO metadata found"
-            echo "📁 Searching for SEO metadata files..."
-            find . -name "*seo*.json" -type f 2>/dev/null | head -10
-          fi
-          
-          # 4. ファクトチェック品質レポート - 複数の場所から検索
-          FACTCHECK_LOCATIONS=(
-            "$ARTICLE_DIR/factcheck_report.json"
-            "factcheck_report.json"
-            "factcheck-*.json"
-          )
-          
-          FACTCHECK_FOUND=false
-          for loc in "${FACTCHECK_LOCATIONS[@]}"; do
-            if [ -f "$loc" ]; then
-              cp "$loc" "$FINAL_DIR/factcheck_report.json"
-              echo "✅ Found factcheck report: $loc"
-              FACTCHECK_FOUND=true
-              break
-            fi
-          done
-          
-          if [ "$FACTCHECK_FOUND" = false ]; then
-            # 検索パターンを使用
-            FACTCHECK_FILE=$(find . -name "*factcheck*.json" | head -1)
-            if [ -n "$FACTCHECK_FILE" ]; then
-              cp "$FACTCHECK_FILE" "$FINAL_DIR/factcheck_report.json"
-              echo "✅ Using factcheck file: $FACTCHECK_FILE"
-            else
-              echo "⚠️ No factcheck report found"
-              echo "📁 Searching for factcheck files..."
-              find . -name "*factcheck*.json" -type f 2>/dev/null | head -10
-            fi
-          fi
-          
-          # 5. 画像フォルダ - 複数の場所から検索
-          mkdir -p "$FINAL_DIR/images"
-          IMAGES_FOUND=false
-          
-          # 標準的な画像フォルダの場所
-          if [ -d "$ARTICLE_DIR/images" ]; then
-            cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
-            echo "✅ Found images in $ARTICLE_DIR/images"
-            IMAGES_FOUND=true
-          fi
-          
-          # imagen/ フォルダから画像を検索（MCP画像生成の場所）
-          if [ -d "imagen" ]; then
-            echo "📁 Checking imagen/ directory for MCP generated images..."
-            cp imagen/*.png "$FINAL_DIR/images/" 2>/dev/null || true
-            cp imagen/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
-            if [ "$(ls -A imagen/*.png 2>/dev/null)" ] || [ "$(ls -A imagen/*.jpg 2>/dev/null)" ]; then
-              echo "✅ Found images in imagen/"
-              IMAGES_FOUND=true
-            fi
-          fi
-          
-          # images-*/output/*/images/ から画像を検索（アーティファクトの構造）
-          IMAGE_ARTIFACT_PATHS=$(find . -path "*/images-*/output/*/images" -type d 2>/dev/null)
-          if [ -n "$IMAGE_ARTIFACT_PATHS" ]; then
-            for img_path in $IMAGE_ARTIFACT_PATHS; do
-              echo "📁 Found image artifact path: $img_path"
-              cp "$img_path"/*.png "$FINAL_DIR/images/" 2>/dev/null || true
-              cp "$img_path"/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
-              IMAGES_FOUND=true
-            done
-          fi
-          
-          # 直接 output/*/images または output/*/imagen から検索
-          if [ -d "$ARTICLE_DIR/images" ] || [ -d "$ARTICLE_DIR/imagen" ]; then
-            echo "📁 Checking output artifact directories..."
-            [ -d "$ARTICLE_DIR/images" ] && cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
-            [ -d "$ARTICLE_DIR/imagen" ] && cp -r "$ARTICLE_DIR/imagen/"* "$FINAL_DIR/images/" 2>/dev/null || true
-            IMAGES_FOUND=true
-          fi
-          
-          # その他の場所から画像を検索（最後の手段）
-          if [ "$IMAGES_FOUND" = false ]; then
-            echo "⚠️ Standard image locations not found, searching all directories..."
-            find . -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | while read img; do
-              if [[ "$img" != *"README"* ]] && [[ "$img" != *"node_modules"* ]]; then
-                cp "$img" "$FINAL_DIR/images/" 2>/dev/null || true
-                echo "✅ Found image: $img"
-                IMAGES_FOUND=true
-              fi
-            done
-          fi
-          
-          # 画像フォルダの内容を確認
-          echo "📁 Final images directory contents:"
-          ls -la "$FINAL_DIR/images/" 2>/dev/null || echo "No images directory created"
-          
-          
-          # 成果物説明書（Prompt_v3準拠）
-          if [ -f "$ARTICLE_DIR/deliverables_summary.md" ]; then
-            cp "$ARTICLE_DIR/deliverables_summary.md" "$FINAL_DIR/deliverables_summary.md"
-          elif [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
-            cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables_summary.md"
-          fi
-          
-          # 最終パッケージの内容確認
-          echo ""
-          echo "📦 Final package contents:"
-          find "$FINAL_DIR" -type f -exec ls -la {} \;
-          
-          # README作成
-          echo "# V4 Free 記事生成完了パッケージ（Prompt_v3準拠）" > "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "**記事タイトル**: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
-          echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
-          echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "## 📁 成果物（Prompt_v3準拠）" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "1. **final_article.html** - 記事本文（HTML形式、Prompt_v3スタイル準拠）" >> "$FINAL_DIR/README.md"
-          echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
-          echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
-          echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
-          echo "5. **deliverables_summary.md** - 成果物説明書" >> "$FINAL_DIR/README.md"
-          echo "6. **images/** - 生成画像（オプション）" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "## 🎯 記事パラメータ" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> "$FINAL_DIR/README.md"
-          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> "$FINAL_DIR/README.md"
-          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "## 📝 備考" >> "$FINAL_DIR/README.md"
-          echo "" >> "$FINAL_DIR/README.md"
-          echo "- **final_article.html**: ARTICLE-TEMPLATE-README.md標準仕様準拠のHTML" >> "$FINAL_DIR/README.md"
-          echo "- CSSクラス名はARTICLE-TEMPLATE-README.md仕様書に完全準拠" >> "$FINAL_DIR/README.md"
-          echo "- ハイライトボックスは1セクション1個まで（v3制限）" >> "$FINAL_DIR/README.md"
-          echo "- strongタグの適切な使用（重要ポイントのみ）" >> "$FINAL_DIR/README.md"
-          echo "- WordPressのHTMLブロックに直接貼り付け可能" >> "$FINAL_DIR/README.md"
-          echo "- 画像生成は有効化設定により生成（オプション）" >> "$FINAL_DIR/README.md"
-          
-          echo "📦 V4 final package created in: $FINAL_DIR"
-          ls -la $FINAL_DIR/
+          echo "Please review the generation logs and consider:"
+          echo "- Adjusting input parameters"
+          echo "- Using v2 profile for more flexible requirements"
+          echo "- Reviewing ARTICLE-TEMPLATE-README.md compliance"
+          exit 1
 
-      - name: Upload final package
-        uses: actions/upload-artifact@v4
-        with:
-          name: FINAL_V4_FREE_ARTICLE_PACKAGE
-          path: final_package
-          retention-days: 30
-
+      - name: V3 workflow summary
+        run: |
+          echo "## V3 Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Strategy:** v3 (Strict Template Compliance)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Article ID:** ${{ needs.initialize.outputs.article_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Generation Status:** ${{ needs.generate_article.outputs.generation_status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Generation:** ${{ inputs.enable_image_generation }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Template Compliance:** ARTICLE-TEMPLATE-README.md" >> $GITHUB_STEP_SUMMARY

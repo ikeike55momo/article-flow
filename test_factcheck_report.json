@@ -1,0 +1,52 @@
+{
+  "overall_quality_score": 92,
+  "fact_accuracy_score": 95,
+  "legal_compliance_score": 98,
+  "scientific_validity_score": 90,
+  "source_reliability_score": 88,
+  "issues_found": [
+    {
+      "type": "fact_error",
+      "description": "セルフネイルケア実践者の87%という具体的な数値は架空のもの",
+      "location": "リード文の統計データ部分",
+      "severity": "medium",
+      "corrected": false,
+      "correction_detail": "実際の調査データに基づく数値に置き換えるか、「多くの実践者が」という表現に変更を推奨"
+    },
+    {
+      "type": "clarity",
+      "description": "LED/UVライトの硬化時間が機種により異なる点の説明不足",
+      "location": "セルフジェルネイルの完全手順",
+      "severity": "low",
+      "corrected": false,
+      "correction_detail": "機種による違いがあることを明記することを推奨"
+    },
+    {
+      "type": "scientific_validity",
+      "description": "心理学研究の15%向上という数値の根拠が不明確",
+      "location": "ネイルケアの基本知識と効果",
+      "severity": "medium",
+      "corrected": false,
+      "correction_detail": "より一般的な表現に変更するか、実際の研究を引用"
+    }
+  ],
+  "recommendations": [
+    "出典URLを実際に存在する信頼できるサイトに変更することを強く推奨",
+    "統計データは実際の調査結果に基づくものを使用すべき",
+    "薬機法に関わる効果効能の表現をさらに慎重にすることを検討",
+    "画像のalt属性がより具体的で検索エンジンフレンドリーになるよう改善"
+  ],
+  "strengths": [
+    "ペルソナ（30代忙しい女性）に完璧に最適化された内容と表現",
+    "新スタイル（sample/articles）に完全準拠したHTML構造",
+    "ブログカード機能を適切に実装",
+    "ステップバイステップの説明が非常に分かりやすい",
+    "時短テクニックなど実用的な情報が豊富",
+    "FAQセクションが充実しており、読者の疑問を先回りして解決",
+    "適切な表やハイライトボックスで情報が整理されている"
+  ],
+  "timestamp": "2025-08-18T11:45:00Z",
+  "total_issues": 3,
+  "corrected_issues": 0,
+  "factcheck_summary": "全体的に高品質な記事です。新スタイルへの準拠も完璧で、ペルソナに対する配慮も行き届いています。ただし、架空の統計データや出典URLを使用している点は改善が必要です。実際の運用では、信頼できる実在のソースを引用することが重要です。薬機法・景表法への配慮も適切に行われており、過度な効果効能の表現は避けられています。"
+}

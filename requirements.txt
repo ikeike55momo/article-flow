@@ -1,0 +1,36 @@
+# Article Flow - Core Dependencies
+# For the new CLI-based article generation system
+
+# LLM API
+anthropic>=0.25.0
+
+# Configuration and data
+PyYAML>=6.0
+pathlib2>=2.3.7; python_version < '3.4'
+
+# JSON handling
+jsonschema>=4.0.0
+
+# Logging and monitoring
+structlog>=23.0.0
+
+# Optional: MCP Integration (if needed)
+# mcp-client>=1.0.0  # Uncomment when MCP is implemented
+
+# Optional: Google Drive Integration
+# google-api-python-client>=2.0.0  # Uncomment if Drive upload needed
+# google-auth>=2.0.0
+# google-auth-oauthlib>=1.0.0
+
+# Optional: Research Integration
+# google-generativeai>=0.3.0  # Uncomment if Gemini research needed
+
+# Development dependencies (optional)
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+flake8>=6.0.0
+
+# GitHub Actions specific
+setuptools>=65.0.0
+wheel>=0.38.0

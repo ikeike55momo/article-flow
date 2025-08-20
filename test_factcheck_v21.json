@@ -1,0 +1,43 @@
+{
+  "overall_quality_score": 94,
+  "fact_accuracy_score": 93,
+  "legal_compliance_score": 98,
+  "scientific_validity_score": 91,
+  "source_reliability_score": 90,
+  "issues_found": [
+    {
+      "type": "clarity",
+      "description": "硬化時間がライトの種類によって異なることの説明が不十分",
+      "location": "section3 - 基本の塗り方5ステップ",
+      "severity": "low",
+      "corrected": false,
+      "correction_detail": "機種による違いがあることを明記推奨"
+    },
+    {
+      "type": "fact_error",
+      "description": "月5,000円の節約額は平均的なサロン価格に基づく推定値",
+      "location": "導入部・まとめ",
+      "severity": "low",
+      "corrected": false,
+      "correction_detail": "「平均的に」という表現を追加推奨"
+    }
+  ],
+  "recommendations": [
+    "出典URLは実在のものに変更することを推奨",
+    "100均商品の品質についてより具体的な情報があると良い",
+    "アレルギーに関する注意事項を追加すると安全性が向上"
+  ],
+  "strengths": [
+    "Phase 2の構成を完璧に実装している",
+    "ターゲットペルソナ（20-30代初心者）に最適化された内容",
+    "v2.1スタイル仕様書に完全準拠",
+    "プチプラ情報が充実していてコスパ重視層に響く",
+    "失敗パターンと対処法が実践的で分かりやすい",
+    "SNS映えを意識した内容が若い世代に適切",
+    "薬機法・景表法への配慮が適切"
+  ],
+  "timestamp": "2025-08-19T11:00:00Z",
+  "total_issues": 2,
+  "corrected_issues": 0,
+  "factcheck_summary": "非常に高品質な記事です。Phase 2の構成に忠実で、v2.1のスタイル仕様書も適切に活用されています。ペルソナへの最適化も完璧で、初心者が知りたい情報が網羅されています。特にプチプラ活用術と失敗対処法は実用的で価値が高いです。"
+}

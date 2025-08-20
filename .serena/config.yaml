@@ -1,0 +1,72 @@
+# Serena Configuration for Article Flow Project
+# Efficient context management for AI-powered article generation workflow
+
+project:
+  name: "article-flow"
+  description: "AI-powered article generation with GitHub Actions workflow"
+  version: "4.0"
+
+contexts:
+  # Core workflow contexts
+  workflow:
+    path: "contexts/workflow"
+    description: "GitHub Actions workflow and automation"
+    priority: "high"
+    
+  templates:
+    path: "contexts/templates"
+    description: "Article templates, styles, and HTML structures"
+    priority: "high"
+    
+  prompts:
+    path: "contexts/prompts"
+    description: "AI prompt files for each workflow phase"
+    priority: "high"
+    
+  samples:
+    path: "contexts/samples"
+    description: "Sample articles and reference materials"
+    priority: "medium"
+    
+  research:
+    path: "contexts/research"
+    description: "Research data, sources, and fact-checking"
+    priority: "medium"
+    
+  config:
+    path: "contexts/config"
+    description: "Configuration files and rules"
+    priority: "medium"
+
+# Context groupings for efficient loading
+groups:
+  article_generation:
+    contexts: ["templates", "prompts", "samples"]
+    description: "Essential files for article creation"
+    
+  workflow_management:
+    contexts: ["workflow", "config"]
+    description: "Workflow automation and configuration"
+    
+  content_research:
+    contexts: ["research", "samples"]
+    description: "Research and reference materials"
+
+# Quick access patterns
+patterns:
+  new_article:
+    includes: ["templates", "prompts"]
+    description: "Creating a new article from scratch"
+    
+  debug_workflow:
+    includes: ["workflow", "config", "prompts"]
+    description: "Debugging GitHub Actions workflow"
+    
+  update_templates:
+    includes: ["templates", "samples"]
+    description: "Updating article templates and styles"
+
+settings:
+  auto_sync: true
+  max_context_size: "200KB"
+  compression: true
