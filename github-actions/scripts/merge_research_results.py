@@ -3,6 +3,7 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -49,8 +50,8 @@ def main():
                     source_type = r.get('source_type', 'industry')
                     r['priority'] = source_priorities.get(source_type, 6)
                 
-                # 結果を優先順位でソート
-                result['results'].sort(key=lambda x: (x.get('priority', 6), -x.get('reliability_score', 0)))
+                # 結果を優先順位でソート（reliability_scoreを数値に変換）
+                result['results'].sort(key=lambda x: (x.get('priority', 6), -float(x.get('reliability_score', 0))))
             
             return result
         
@@ -62,7 +63,7 @@ def main():
         for result in all_results:
             if 'results' in result:
                 for r in result['results']:
-                    if r.get('source_type') in ['government', 'academic', 'medical'] and r.get('reliability_score', 0) >= 8:
+                    if r.get('source_type') in ['government', 'academic', 'medical'] and float(r.get('reliability_score', 0)) >= 8:
                         high_reliability_sources.append({
                             'url': r.get('url'),
                             'title': r.get('title'),
