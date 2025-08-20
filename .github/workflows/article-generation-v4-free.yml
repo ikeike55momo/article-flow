@@ -1,4 +1,4 @@
-name: Article Generation V4 Free (New Architecture - Prompt_v3)
+name: Article Generation V4 Free (Simplified Output)
 
 on:
   workflow_dispatch:
@@ -38,374 +38,1690 @@ on:
         required: false
         type: boolean
         default: true
+      
+      # Google Drive upload removed
 
 env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # ジョブ1: 初期化とセットアップ（v3専用）
+  # ジョブ1: 初期化
   initialize:
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 5
     outputs:
       article_id: ${{ steps.init.outputs.article_id }}
-      profile: 'v3'
       
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          
-      - name: Install dependencies
-        run: |
-          pip install anthropic pyyaml pathlib
-          # v3専用の依存関係があれば追加
-
-      - name: Initialize article generation (v3 strict mode)
+      - name: Initialize article generation
         id: init
         run: |
-          # 記事IDを生成（v3識別子付き）
-          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-30)
-          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_v3_${CLEAN_TITLE}
-          
+          # タイトルからIDを生成
+          CLEAN_TITLE=$(echo "${{ inputs.article_title }}" | sed 's/[^a-zA-Z0-9あ-んア-ン一-龯]/_/g' | cut -c1-50)
+          ARTICLE_ID=$(date +%Y%m%d_%H%M%S)_${CLEAN_TITLE}
           echo "article_id=${ARTICLE_ID}" >> $GITHUB_OUTPUT
-          
           echo "Article ID: ${ARTICLE_ID}"
-          echo "Profile: v3 (Strict Template Compliance)"
           
           # 出力ディレクトリ作成
-          mkdir -p "output/${ARTICLE_ID}"
+          mkdir -p output/${ARTICLE_ID}
           
-          # v3用の厳密な入力パラメータ検証
-          TITLE_LENGTH=$(echo -n "${{ inputs.article_title }}" | wc -m)
-          KEYWORDS_COUNT=$(echo "${{ inputs.main_keywords }}" | tr ',' '\n' | wc -l)
-          
-          echo "Title length: ${TITLE_LENGTH} characters"
-          echo "Keywords count: ${KEYWORDS_COUNT}"
-          
-          # v3品質チェック
-          if [ ${TITLE_LENGTH} -lt 30 ] || [ ${TITLE_LENGTH} -gt 32 ]; then
-            echo "WARNING: Title length ${TITLE_LENGTH} is outside optimal range (30-32 characters)"
-          fi
-          
-          if [ ${KEYWORDS_COUNT} -gt 3 ]; then
-            echo "WARNING: Too many keywords (${KEYWORDS_COUNT}), maximum 3 recommended"
-          fi
-          
-          # 入力パラメータファイル作成（v3対応）
-          cat > "output/${ARTICLE_ID}/input_params.json" << EOF
-          {
-            "article_id": "${ARTICLE_ID}",
-            "title": "${{ inputs.article_title }}",
-            "main_keywords": "${{ inputs.main_keywords }}",
-            "approach_target": "${{ inputs.approach_target }}",
-            "eeat_elements": "${{ inputs.eeat_elements }}",
-            "word_count": "${{ inputs.word_count }}",
-            "profile": "v3",
-            "template_compliance_mode": "strict",
-            "enable_image_generation": ${{ inputs.enable_image_generation }},
-            "quality_threshold": 90,
-            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
-
-      - name: Validate inputs (v3 strict mode)
-        run: |
-          # v3の厳密な入力検証
-          python -m article_flow.cli \
-            --profile "v3" \
-            --title "${{ inputs.article_title }}" \
-            --main-keywords "${{ inputs.main_keywords }}" \
-            --approach-target "${{ inputs.approach_target }}" \
-            --eeat-elements "${{ inputs.eeat_elements }}" \
-            --word-count "${{ inputs.word_count }}" \
-            --prompt-dir "Prompt_v3" \
-            --output-dir "output/${{ steps.init.outputs.article_id }}" \
-            --config "article_flow/config/v3.yaml" \
-            --dry-run \
-            --log-level "INFO"
-          
-          echo "v3 strict validation completed ✅"
+          # 入力情報を保存
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo '{' > "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"article_id\": \"${ARTICLE_ID}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"title\": \"${{ inputs.article_title }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"approach_target\": \"${{ inputs.approach_target }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"main_keywords\": \"${{ inputs.main_keywords }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"eeat_elements\": \"${{ inputs.eeat_elements }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"word_count\": \"${{ inputs.word_count }}\"," >> "output/${ARTICLE_ID}/input_params.json"
+          echo "  \"created_at\": \"${TIMESTAMP}\"" >> "output/${ARTICLE_ID}/input_params.json"
+          echo '}' >> "output/${ARTICLE_ID}/input_params.json"
 
       - name: Upload initialization artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: init-v3-${{ steps.init.outputs.article_id }}
+          name: init-${{ steps.init.outputs.article_id }}
           path: output/${{ steps.init.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ2: 記事生成（v3厳密モード）
-  generate_article:
+  # ジョブ2: リクエスト分析
+  analysis:
     needs: initialize
     runs-on: ubuntu-latest
     environment: GA
-    timeout-minutes: 45  # v3は品質重視で長めのタイムアウト
+    timeout-minutes: 10
     outputs:
-      generation_status: ${{ steps.generate.outputs.status }}
-      quality_score: ${{ steps.generate.outputs.quality_score }}
+      main_keyword: ${{ steps.analyze.outputs.main_keyword }}
       
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Download initialization artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: init-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          
+
       - name: Install dependencies
         run: |
-          pip install anthropic pyyaml pathlib
-          # v3で必要な追加依存関係
+          cd github-actions
+          pip install -r requirements.txt
+
+      - name: Create analysis input
+        run: |
+          cd output/${{ needs.initialize.outputs.article_id }}
+          # Phase1が期待する形式のJSONを作成
+          echo '{' > request_params.json
+          echo "  \"topic\": \"${{ inputs.article_title }}\"," >> request_params.json
+          echo "  \"target_audience\": \"${{ inputs.approach_target }}\"," >> request_params.json
+          echo "  \"keywords\": \"${{ inputs.main_keywords }}\"" >> request_params.json
+          echo '}' >> request_params.json
+
+      - name: Run Phase 1 Analysis with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            # 記事リクエスト分析
+            
+            記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
+            
+            ## 入力情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
+            - **メタキーワード**: ${{ inputs.main_keywords }}
+            - **目標文字数**: ${{ inputs.word_count }}
+            
+            ## タスク
+            まず、output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解した後、以下の分析を実行してください：
+            
+            1. **メインキーワードの特定**
+               - 記事タイトルとメタキーワードから最も重要なキーワードを1つ選定
+            
+            2. **関連キーワードの抽出**
+               - メインキーワードに関連する重要キーワード5-8個を抽出
+            
+            3. **検索意図の分析**
+               - informational（情報収集）、navigational（特定サイト検索）、transactional（購入意図）、commercial（比較検討）のいずれかを判定
+            
+            4. **コンテンツタイプの決定**
+               - how-to（方法・手順）、guide（総合ガイド）、comparison（比較）、review（レビュー）、tips（コツ・アドバイス）のいずれかを選択
+            
+            5. **トーンの設定**
+               - friendly（親しみやすい）、professional（専門的）、casual（カジュアル）、authoritative（権威的）のいずれかを選択
+            
+            6. **キーポイントの抽出**
+               - ペルソナが知りたい重要なポイント3-5個
+            
+            7. **リサーチクエリの生成**
+               - 記事作成のために調べるべき検索クエリ15-25個を生成
+            
+            ## 出力形式
+            分析結果を output/${{ needs.initialize.outputs.article_id }}/phase1_output.json ファイルに以下のJSON形式で保存してください：
+            
+            ```json
+            {
+              "analysis": {
+                "main_keyword": "抽出したメインキーワード",
+                "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
+                "search_intent": "informational",
+                "content_type": "how-to", 
+                "tone": "friendly",
+                "key_points": ["ポイント1", "ポイント2", "ポイント3"],
+                "research_queries": [
+                  "クエリ1", "クエリ2", "クエリ3", "クエリ4", "クエリ5",
+                  "クエリ6", "クエリ7", "クエリ8", "クエリ9", "クエリ10",
+                  "クエリ11", "クエリ12", "クエリ13", "クエリ14", "クエリ15"
+                ],
+                "competitor_analysis_needed": true,
+                "local_seo_focus": false,
+                "estimated_sections": 5
+              },
+              "input_info": {
+                "topic": "${{ inputs.article_title }}",
+                "target_audience": "${{ inputs.approach_target }}",
+                "keywords": "${{ inputs.main_keywords }}",
+                "word_count": "${{ inputs.word_count }}"
+              },
+              "processed_at": "現在時刻",
+              "workflow_version": "4.0.0"
+            }
+            ```
+            
+            ## 注意点
+            - ペルソナの特性（年代、性別、関心事）を考慮してキーワードを選定
+            - リサーチクエリは具体的で検索しやすいものにする
+            - 健康・美容分野では薬機法・景表法への配慮が必要
+          
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "5"
+      
+      - name: Verify and prepare analysis results
+        run: |
+          echo "🔍 Checking for analysis files..."
+          echo "Current working directory: $(pwd)"
+          echo "Files in root:"
+          ls -la
+          echo "Files in output directory:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          
+          cd output/${{ needs.initialize.outputs.article_id }}
+          if [ -f "phase1_output.json" ]; then
+            echo "✅ Phase 1 analysis file found"
+            cat phase1_output.json
+          else
+            echo "⚠️ Phase 1 analysis file not found, creating default"
+            # Check if file was created in root directory by mistake
+            if [ -f "../../phase1_output.json" ]; then
+              echo "📁 Found phase1_output.json in root, moving to correct location"
+              mv ../../phase1_output.json ./phase1_output.json
+            else
+              echo "🔧 Creating fallback analysis file"
+              # Create fallback analysis if Claude didn't create the file
+              TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+              TITLE="${{ inputs.article_title }}"
+              PERSONA="${{ inputs.approach_target }}"
+              KEYWORDS="${{ inputs.main_keywords }}"
+              EEAT_ELEMENTS="${{ inputs.eeat_elements }}"
+              
+              # 外部スクリプトを使用してJSONを作成
+              TITLE="${TITLE}" PERSONA="${PERSONA}" KEYWORDS="${KEYWORDS}" EEAT_ELEMENTS="${EEAT_ELEMENTS}" TIMESTAMP="${TIMESTAMP}" OUTPUT_DIR="." python3 ../../github-actions/scripts/create_phase1_fallback.py
+            fi
+          fi
+          
+          echo "📋 Final verification - files in current directory:"
+          ls -la
+
+      - name: Split research queries into batches
+        id: analyze
+        run: |
+          # クエリを5バッチに分割
+          cd output/${{ needs.initialize.outputs.article_id }}
+          python3 ../../github-actions/scripts/split_research_queries.py
+          
+          # メインキーワードを出力
+          if [ -f "research_meta.json" ]; then
+            MAIN_KW=$(python -c "import json; print(json.load(open('research_meta.json'))['main_keyword'])")
+            echo "main_keyword=${MAIN_KW}" >> $GITHUB_OUTPUT
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ENABLE_GEMINI_RESEARCH: "true"
+
+      - name: Upload analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ3: リサーチ（Gemini使用 - 並列実行）
+  research:
+    needs: [initialize, analysis]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        batch: [0, 1, 2]  # Reduced to 3 batches to match max-parallel
+      max-parallel: 3  # Balanced for rate limiting with gemini-2.5-flash
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Download initialization artifacts
         uses: actions/download-artifact@v4
         with:
-          name: init-v3-${{ needs.initialize.outputs.article_id }}
+          name: init-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
 
-      - name: Generate article using v3 strategy
-        id: generate
+      - name: Download analysis artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd github-actions
+          pip install -r requirements.txt
+          
+      - name: Install Gemini API dependencies  
+        run: |
+          pip install google-genai
+
+      - name: Research with Gemini (Batch ${{ matrix.batch }})
+        run: |
+          cd output/${{ needs.initialize.outputs.article_id }}
+          
+          # バッチ用の分析ファイルを作成
+          BATCH_NUM=${{ matrix.batch }} python3 ../../github-actions/scripts/create_batch_analysis.py
+          
+          # バッチクエリを読み込んでGemini APIで直接検索（外部スクリプト使用）
+          python3 ../../github-actions/scripts/research_batch_gemini.py ${{ matrix.batch }}
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # v3固有の環境変数も設定
-        run: |
-          echo "🚀 Starting v3 strict article generation"
-          echo "Template: ARTICLE-TEMPLATE-README.md compliance required"
-          echo "Quality threshold: 90+ points"
-          echo ""
-          
-          # v3 Strategy でフルパイプライン実行
-          python -m article_flow.cli \
-            --profile "v3" \
-            --title "${{ inputs.article_title }}" \
-            --main-keywords "${{ inputs.main_keywords }}" \
-            --approach-target "${{ inputs.approach_target }}" \
-            --eeat-elements "${{ inputs.eeat_elements }}" \
-            --word-count "${{ inputs.word_count }}" \
-            --prompt-dir "Prompt_v3" \
-            --output-dir "output/${{ needs.initialize.outputs.article_id }}" \
-            --config "article_flow/config/v3.yaml" \
-            --enable-image-generation="${{ inputs.enable_image_generation }}" \
-            --log-level "INFO" \
-            --article-id "${{ needs.initialize.outputs.article_id }}"
-          
-          # 実行結果と品質チェック
-          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
-          
-          if [ -f "$RESULT_FILE" ]; then
-            # v3品質スコアを抽出
-            QUALITY_SCORE=$(python -c "
-            import json
-            try:
-                with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
-                    result = json.load(f)
-                phases = result.get('phases', {})
-                factcheck = phases.get('phase4', {})
-                if factcheck:
-                    score = factcheck.get('overall_score', 0)
-                    template_score = factcheck.get('template_compliance_score', 0)
-                    print(f'{score}')
-                else:
-                    print('0')
-            except:
-                print('0')
-            ")
-            
-            echo "quality_score=${QUALITY_SCORE}" >> $GITHUB_OUTPUT
-            echo "Quality Score: ${QUALITY_SCORE}"
-            
-            # v3品質基準チェック（90点以上）
-            if [ "$QUALITY_SCORE" -ge 90 ]; then
-              echo "status=success" >> $GITHUB_OUTPUT
-              echo "✅ v3 Article generation completed with high quality (${QUALITY_SCORE}/100)"
-            else
-              echo "status=failed" >> $GITHUB_OUTPUT
-              echo "❌ v3 Quality score ${QUALITY_SCORE} below v3 threshold (90+)"
-              exit 1
-            fi
-          else
-            echo "status=failed" >> $GITHUB_OUTPUT
-            echo "❌ v3 Article generation failed - no result file"
-            exit 1
-          fi
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Validate v3 template compliance
-        run: |
-          # v3特有のテンプレート準拠検証
-          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
-          
-          echo "🔍 Validating ARTICLE-TEMPLATE-README.md compliance..."
-          
-          python -c "
-          import json
-          
-          with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
-              result = json.load(f)
-          
-          phases = result.get('phases', {})
-          
-          # Phase 3 (content) のテンプレート準拠チェック
-          content_phase = phases.get('phase3', {})
-          if content_phase:
-              template_score = content_phase.get('template_adherence_score', 0)
-              html_quality = content_phase.get('html_quality_score', 0)
-              
-              print(f'Template Adherence Score: {template_score}')
-              print(f'HTML Quality Score: {html_quality}')
-              
-              if template_score >= 90 and html_quality >= 90:
-                  print('✅ v3 Template compliance verified')
-              else:
-                  print('❌ v3 Template compliance failed')
-                  print(f'Required: Template≥90, HTML≥90')
-                  print(f'Actual: Template={template_score}, HTML={html_quality}')
-                  exit(1)
-          else:
-              print('❌ Content phase results not found')
-              exit(1)
-          "
-
-      - name: Generate v3 quality report
-        run: |
-          # v3専用の詳細品質レポート生成
-          RESULT_FILE="output/${{ needs.initialize.outputs.article_id }}/final_result.json"
-          REPORT_FILE="output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md"
-          
-          python -c "
-          import json
-          from datetime import datetime
-          
-          with open('$RESULT_FILE', 'r', encoding='utf-8') as f:
-              result = json.load(f)
-          
-          phases = result.get('phases', {})
-          
-          # v3品質レポート作成
-          report = []
-          report.append('# V3 Article Generation Quality Report')
-          report.append('')
-          report.append(f'**Generated:** {datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")}')
-          report.append(f'**Article ID:** {result.get(\"article_id\", \"Unknown\")}')
-          report.append(f'**Strategy:** v3 (Strict Template Compliance)')
-          report.append('')
-          
-          # 品質メトリクス詳細
-          factcheck = phases.get('phase4', {})
-          if factcheck and 'factcheck_results' in factcheck:
-              fc = factcheck['factcheck_results']
-              report.append('## Quality Metrics')
-              report.append('')
-              report.append(f'| Metric | Score | Status |')
-              report.append(f'|--------|-------|--------|')
-              report.append(f'| Overall Score | {fc.get(\"overall_score\", \"N/A\")} | {'✅' if fc.get(\"overall_score\", 0) >= 90 else '❌'} |')
-              report.append(f'| Factual Accuracy | {fc.get(\"factual_accuracy\", \"N/A\")} | {'✅' if fc.get(\"factual_accuracy\", 0) >= 90 else '❌'} |')
-              report.append(f'| Regulatory Compliance | {fc.get(\"regulatory_compliance\", \"N/A\")} | {'✅' if fc.get(\"regulatory_compliance\", 0) >= 95 else '❌'} |')
-              report.append(f'| Template Compliance | {fc.get(\"template_compliance\", \"N/A\")} | {'✅' if fc.get(\"template_compliance\", 0) >= 90 else '❌'} |')
-              report.append('')
-          
-          # テンプレート準拠詳細
-          content_phase = phases.get('phase3', {})
-          if content_phase:
-              report.append('## Template Compliance Details')
-              report.append('')
-              report.append(f'- **HTML Quality Score:** {content_phase.get(\"html_quality_score\", \"N/A\")}')
-              report.append(f'- **Template Adherence Score:** {content_phase.get(\"template_adherence_score\", \"N/A\")}')
-              report.append(f'- **Quality Status:** {'✅ Passed' if content_phase.get(\"quality_passed\", False) else '❌ Failed'}')
-              report.append('')
-          
-          # v3認定
-          overall_quality = factcheck.get('factcheck_results', {}).get('overall_score', 0) if factcheck else 0
-          template_quality = content_phase.get('template_adherence_score', 0) if content_phase else 0
-          
-          if overall_quality >= 90 and template_quality >= 90:
-              report.append('## ✅ V3 CERTIFICATION ACHIEVED')
-              report.append('')
-              report.append('This article meets v3 strict quality standards:')
-              report.append('- ✅ Overall Quality ≥ 90 points')
-              report.append('- ✅ Template Compliance ≥ 90 points') 
-              report.append('- ✅ ARTICLE-TEMPLATE-README.md adherence')
-          else:
-              report.append('## ❌ V3 CERTIFICATION FAILED')
-              report.append('')
-              report.append('Article did not meet v3 quality requirements.')
-          
-          with open('$REPORT_FILE', 'w', encoding='utf-8') as f:
-              f.write('\\n'.join(report))
-          
-          print('V3 Quality Report generated')
-          "
-
-      - name: Upload v3 generation results
+      - name: Upload research batch artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: article-v3-${{ needs.initialize.outputs.article_id }}
+          name: research-batch-${{ matrix.batch }}-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/batch_${{ matrix.batch }}
+          retention-days: 30
+
+  # ジョブ4: リサーチ結果の統合
+  research-merge:
+    needs: [initialize, research]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create output directory
+        run: mkdir -p output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Download all research batches
+        uses: actions/download-artifact@v4
+        with:
+          pattern: research-batch-*-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/batches
+
+      - name: Download analysis artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: analysis-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+
+      - name: Merge research results
+        run: |
+          cd output/${{ needs.initialize.outputs.article_id }}
+          
+          # リサーチ結果を統合してV4出力形式にする
+          python3 ../../github-actions/scripts/merge_research_results.py
+          
+          # V4用にファイル名を変更
+          if [ -f "phase2_research.json" ]; then
+            mv phase2_research.json research_results.json
+            echo "✅ Created research_results.json for V4"
+          fi
+
+      - name: Upload merged research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
           retention-days: 30
 
-  # ジョブ3: v3結果分析と通知
-  finalize:
-    needs: [initialize, generate_article]
+  # ジョブ5: 記事構成の生成（SEO削除版）
+  generate-structure:
+    needs: [initialize, analysis, research-merge]
     runs-on: ubuntu-latest
-    if: always()
-    timeout-minutes: 5
-    
+    environment: GA
+    timeout-minutes: 15
+      
     steps:
-      - name: Download v3 generation results
-        if: needs.generate_article.outputs.generation_status == 'success'
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: article-v3-${{ needs.initialize.outputs.article_id }}
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
           path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
 
-      - name: Display v3 generation summary
-        if: needs.generate_article.outputs.generation_status == 'success'
-        run: |
-          echo "## ✅ V3 Article Generation Completed"
-          echo ""
-          echo "**Strategy:** v3 (Strict Template Compliance)"
-          echo "**Article ID:** ${{ needs.initialize.outputs.article_id }}"
-          echo "**Title:** ${{ inputs.article_title }}"
-          echo "**Keywords:** ${{ inputs.main_keywords }}"
-          echo "**Target:** ${{ inputs.approach_target }}"
-          echo "**Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100"
-          echo ""
+      - name: Generate article structure with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
-          # v3品質レポート表示
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md" ]; then
-            echo "### V3 Quality Report"
-            cat "output/${{ needs.initialize.outputs.article_id }}/v3_quality_report.md"
+          prompt: |
+            # 記事構成生成
+            
+            健康・美容に関する記事の基本構成を作成してください。（SEO最適化は後の工程で実施するため、読者に価値のある構成に重点を置く）
+            
+            ## 入力情報
+            
+            ### 基本情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
+            - **メタキーワード**: ${{ inputs.main_keywords }}
+            - **目標文字数**: ${{ inputs.word_count }}
+            
+            ## タスク
+            
+            まず、以下のファイルを読み込んで理解してください：
+            - output/${{ needs.initialize.outputs.article_id }}/input_params.json: 入力パラメータ
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json: 分析結果
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果
+            
+            分析とリサーチ結果を踏まえて、ペルソナに最適化された記事構成を作成してください。
+            
+            ### 1. 記事構成（01_article_structure.md）を作成
+            
+            output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md として以下の要素を含む詳細な構成を作成：
+            
+            - 導入部（リード文）：ペルソナの悩みに共感し、記事の価値を明確にする（300-500文字）
+            - 目次：H2レベルの見出し5-7個
+            - メインセクション：各セクションの目的、含める内容、文字数目安（400-600文字）
+            - FAQ部分：ペルソナがよく持つ疑問3-5個
+            - まとめ：記事の要点と次のアクション
+            
+            ### 2. コンテンツ計画（02_content_plan.md）を作成
+            
+            output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md として各セクションの詳細な内容計画を作成：
+            
+            - セクション別詳細計画：キーメッセージ、使用するリサーチ情報、含めるキーワード
+            - ペルソナ最適化のポイント：ペルソナの特性に合わせた表現方法
+            - 薬機法・景表法配慮事項：注意すべき表現、代替表現の提案
+            
+            ## 出力要件
+            
+            - **読者ファースト**: SEOよりもペルソナの価値を重視
+            - **論理的な流れ**: 読者の疑問が自然に解決される構成
+            - **実用性**: 具体的で実践しやすい内容
+            - **信頼性**: リサーチ結果に基づいた正確な情報
+            - **法規制対応**: 薬機法・景表法に配慮した表現計画
+          
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
+
+      - name: Upload structure artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: structure-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ6: 記事本文の生成（MD専用）
+  generate-content:
+    needs: [initialize, generate-structure]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Generate article content with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            # 記事本文生成（HTML形式）
+            
+            プロフェッショナルなコンテンツライターとして、Phase 2の構成に従って高品質な記事を生成してください。
+            **ARTICLE-TEMPLATE-README.mdのCSSクラス仕様を完全に遵守してください。**
+            
+            ## 入力情報
+            
+            ### 基本情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
+            - **目標文字数**: ${{ inputs.word_count }}
+            
+            ## タスク
+            
+            まず、以下のファイルを読み込んで内容を理解してください：
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json: Phase 1の分析結果
+            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md: Phase 2の記事構成
+            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md: Phase 2のコンテンツ計画
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果（出典URL含む）
+            
+            ## 記事生成ルール（ARTICLE-TEMPLATE-README.md準拠）
+            
+            ### 1. 基本方針
+            - **Phase 2の構成を忠実に実装**してください
+            - WordPressのHTMLブロックに貼り付けることを前提
+            - セマンティックで読みやすいHTMLを生成
+            
+            ### 2. HTML構造の要件
+            
+            基本構造（必須）：
+            ```html
+            <div class="article-content">
+              <!-- 記事全体をこのコンテナで囲む -->
+              <!-- 以下、Phase 2の構成に従って記事を展開 -->
+            </div>
+            ```
+            
+            標準パーツ：
+            
+            **導入部分：**
+            - 信頼性バッジ: `<div class="article-expert-badge">`
+            - リードテキスト: `<p class="article-lead-text">`
+            - 目次: `<div class="article-toc">` （アンカーリンクを正しく設定）
+            
+            **本文パーツ：**
+            - ハイライトボックス（1セクション1個まで）: `<div class="article-highlight-box">`
+            - ステップリスト: `<ol class="article-steps-list">`
+            - 比較テーブル: `<table class="article-comparison-table">`
+            - 引用ブロック: `<div class="article-quote">`
+            
+            ### 3. FAQ部分（重要：構造を正確に）
+            
+            ```html
+            <div class="article-faq-section">
+              <h2>よくある質問</h2>
+              
+              <div class="article-faq-item">
+                <input type="checkbox" id="faq1">
+                <label for="faq1" class="article-faq-question">
+                  <span>Q1: 質問内容</span>
+                </label>
+                <div class="article-faq-answer">A1: 回答内容</div>
+              </div>
+            </div>
+            ```
+            
+            ### 4. 出典・引用の扱い方
+            
+            本文中で統計データや専門的主張を述べる際は必ず出典を付けてください：
+            
+            ```html
+            <!-- 本文中 -->
+            <p>研究結果によると<a class="article-cite" href="#fn-1" id="fnref-1">[1]</a>、〇〇ということが明らかになっています。</p>
+            
+            <!-- 記事末尾 -->
+            <div class="article-reliability-info">
+              <h3>この記事の信頼性について</h3>
+              <ol class="article-citations">
+                <li id="fn-1">
+                  <a href="実際のURL" target="_blank" rel="noopener">出典名</a>
+                  <a href="#fnref-1" class="fn-back">↩</a>
+                </li>
+              </ol>
+            </div>
+            ```
+            
+            リサーチ結果から5つ以上の出典を引用してください。
+            
+            ### 5. strongタグの使用ガイドライン
+            
+            **使用する場所：**
+            - 文章内の重要なポイント
+            - 注意点、推奨事項
+            - 成功のコツ
+            - 読者の理解を助ける強調
+            
+            **使用しない場所：**
+            - ラベル（「住所：」など）
+            - 項目名・見出し
+            - 短い単語やラベル
+            
+            ### 6. ハイライトボックスの使用制限
+            
+            - **導入部分**: 積極的に使用推奨
+            - **メインセクション内**: 1セクション1個まで、本当に重要な情報のみ
+            - **過度な使用は避ける**: 基本はh3+p構造を使用
+            
+            ### 7. ブログカードの配置（任意）
+            
+            ```html
+            <p>詳しい手順については、こちらの記事も参考にしてください。</p>
+            [blog_card url="https://example.com/related-article"]
+            ```
+            
+            ### 8. CTAセクション
+            
+            ```html
+            <section class="article-cta-section">
+              <h2>【記事テーマに合わせた行動喚起タイトル】</h2>
+              <p>【記事内容を踏まえた誘導文】</p>
+              <a href="https://beauty.hotpepper.jp/kr/slnH000618948/" class="article-cta-button">ご予約はこちら</a>
+            </section>
+            ```
+            
+            ## 生成の指示
+            
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html として、
+            `<div class="article-content">` で開始し `</div>` で終了する完全なHTMLコードを保存してください。
+            インラインスタイル（`<style>`タグ）は含めないでください。
+            
+            文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
+            
+            ## 品質チェックリスト
+            
+            - **ARTICLE-TEMPLATE-README.md仕様に完全準拠**
+            - Phase 2の構成通りのセクション構成
+            - セマンティックなHTML構造
+            - strongタグの適切な使用（文章内の重要ポイントのみ）
+            - ハイライトボックスの制限遵守（1セクション1個まで）
+            - FAQの構造が標準仕様通り（checkbox + label + span）
+            - アンカーリンクが正しく機能する目次
+            - リサーチ結果から5つ以上の出典を引用
+            - 出典リンクの形式が正しい（fn-1, fnref-1等）
+            - CTAが記事内容に最適化されている
+            - 指定文字数を遵守
+            - ペルソナに最適化された表現
+            - 薬機法・景表法に配慮した表現
+          
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            TITLE=${{ inputs.article_title }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            WORD_COUNT=${{ inputs.word_count }}
+          
+          max_turns: "15"
+
+      - name: Verify article generation with fallback
+        id: verify-article
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          echo "🔍 Checking for generated article file..."
+          
+          if [ -f "$ARTICLE_DIR/final_article.html" ]; then
+            echo "✅ Found final_article.html"
+            echo "article_found=true" >> $GITHUB_OUTPUT
+            echo "fallback_used=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Primary generation failed, checking for fallback..."
+            echo "📁 Contents of $ARTICLE_DIR:"
+            ls -la "$ARTICLE_DIR/" || echo "Directory not found"
+            
+            # Check if any HTML file exists
+            if [ -f "$ARTICLE_DIR/article.html" ]; then
+              mv "$ARTICLE_DIR/article.html" "$ARTICLE_DIR/final_article.html"
+              echo "✅ Found article.html, renamed to final_article.html"
+              echo "article_found=true" >> $GITHUB_OUTPUT
+              echo "fallback_used=false" >> $GITHUB_OUTPUT
+            else
+              echo "❌ ERROR: No HTML article generated!"
+              echo "article_found=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
           fi
 
-      - name: Handle v3 generation failure
-        if: needs.generate_article.outputs.generation_status == 'failed'
-        run: |
-          echo "## ❌ V3 Article Generation Failed"
-          echo ""
-          echo "**Strategy:** v3 (Strict Template Compliance)"
-          echo "**Article ID:** ${{ needs.initialize.outputs.article_id }}"
-          echo "**Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100"
-          echo ""
-          echo "**Failure Reason:** Quality score below v3 threshold (90+ required)"
-          echo ""
-          echo "Please review the generation logs and consider:"
-          echo "- Adjusting input parameters"
-          echo "- Using v2 profile for more flexible requirements"
-          echo "- Reviewing ARTICLE-TEMPLATE-README.md compliance"
-          exit 1
+      - name: Upload content artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
 
-      - name: V3 workflow summary
+  # ジョブ7: ファクトチェック（品質スコア付き）
+  factcheck:
+    needs: [initialize, generate-content]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Debug - Check files before factcheck
         run: |
-          echo "## V3 Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Files before factcheck:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔧 Environment variables:"
+          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
+          echo "WORKSPACE: ${{ github.workspace }}"
+          echo "Expected factcheck path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json"
+          echo ""
+          echo "📄 Checking final_article.md:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
+            echo "✅ final_article.md exists"
+            wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.md
+          else
+            echo "❌ final_article.md NOT found"
+          fi
+          echo ""
+          echo "📄 Checking research_results.json:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/research_results.json" ]; then
+            echo "✅ research_results.json exists"
+            wc -l output/${{ needs.initialize.outputs.article_id }}/research_results.json
+          else
+            echo "❌ research_results.json NOT found"
+          fi
+
+      - name: Fact-check article with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            # 記事ファクトチェック・品質スコア算出
+            
+            記事のファクトチェックを行い、品質スコアを算出してください。
+            
+            ## タスク
+            
+            まず、以下のファイルを読み込んで内容を確認してください：
+            - output/${{ needs.initialize.outputs.article_id }}/final_article.html: 記事本文
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果
+            
+            ## チェック観点
+            
+            ### 1. 事実の正確性
+            - 記載されている数値・統計データの正確性
+            - リサーチ結果との整合性
+            - 出典の信頼性
+            
+            ### 2. 薬機法・景表法の遵守
+            - 効果・効能の過度な表現がないか
+            - 「必ず」「絶対」などの断定的表現の確認
+            - 医学的根拠のない主張がないか
+            
+            ### 3. 科学的・医学的妥当性
+            - 専門的主張の根拠の有無
+            - 最新の研究結果との整合性
+            - 誤解を招く表現がないか
+            
+            ### 4. ペルソナへの配慮
+            - ペルソナが誤解しやすい表現はないか
+            - より分かりやすい説明が必要な箇所はないか
+            
+            ### 5. ARTICLE-TEMPLATE-README.md仕様準拠（v3追加）
+            - CSSクラス名が仕様通りか
+            - strongタグの使用が適切か（文章内の重要ポイントのみ）
+            - ハイライトボックスが1セクション1個以内か
+            - FAQの構造が正しいか（checkbox + label + span）
+            - 出典リンクの形式が正しいか（fn-1, fnref-1等）
+            
+            ## 出力形式
+            
+            ### 1. 記事の内容をチェック
+            上記5つの観点で詳細に確認し、問題箇所があれば具体的に指摘してください。
+            
+            ### 2. 修正が必要な場合
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html を直接編集し、修正理由を明記してください。
+            
+            ### 3. 品質レポートを作成
+            output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json として以下のJSON形式で保存：
+            
+            ```json
+            {
+              "overall_quality_score": 85,
+              "fact_accuracy_score": 90,
+              "legal_compliance_score": 95,
+              "scientific_validity_score": 80,
+              "source_reliability_score": 85,
+              "issues_found": [
+                {
+                  "type": "fact_error|legal_compliance|scientific_validity|clarity",
+                  "description": "具体的な問題の説明",
+                  "location": "記事内の該当箇所（見出しやキーワード）",
+                  "severity": "high|medium|low",
+                  "corrected": true,
+                  "correction_detail": "どのように修正したかの説明"
+                }
+              ],
+              "recommendations": [
+                "より具体的な統計データの追加を推奨",
+                "専門用語の説明をもう少し詳しく"
+              ],
+              "strengths": [
+                "信頼できる出典を5つ以上引用",
+                "ペルソナに合わせた分かりやすい表現"
+              ],
+              "timestamp": "現在時刻",
+              "total_issues": 3,
+              "corrected_issues": 2,
+              "factcheck_summary": "記事全体の品質についての総合コメント"
+            }
+            ```
+            
+            ## スコア基準
+            - **overall_quality_score** (0-100): 総合品質スコア
+            - **fact_accuracy_score** (0-100): 事実の正確性
+            - **legal_compliance_score** (0-100): 薬機法・景表法遵守度
+            - **scientific_validity_score** (0-100): 科学的・医学的妥当性
+            - **source_reliability_score** (0-100): 情報源の信頼性
+            
+            ## 注意点
+            - **客観的な評価**: 感情的な判断ではなく、事実に基づいて評価
+            - **建設的なフィードバック**: 問題点だけでなく改善案も提示
+            - **ペルソナ視点**: 読者（ペルソナ）の理解しやすさを重視
+            - **法規制の理解**: 健康・美容分野の表現規制を正しく適用
+          
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORKSPACE=${{ github.workspace }}
+          
+          max_turns: "10"
+
+      - name: Debug - Check Claude execution
+        run: |
+          echo "🔍 Post-Claude execution check:"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "📁 All files in output directory after Claude:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔍 Looking for any JSON files created:"
+          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
+
+      - name: Verify factcheck output
+        run: |
+          echo "🔍 Checking factcheck output..."
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json" ]; then
+            echo "✅ factcheck_report.json created successfully"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json
+          else
+            echo "❌ factcheck_report.json NOT found!"
+            echo "📁 Contents of output directory:"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
+          fi
+
+      - name: Upload factcheck artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: factcheck-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ8: SEOメタ情報生成
+  generate-seo-meta:
+    needs: [initialize, analysis, generate-content]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Debug - Check files before SEO
+        run: |
+          echo "📁 Files before SEO metadata generation:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔧 Environment variables:"
+          echo "ARTICLE_ID: ${{ needs.initialize.outputs.article_id }}"
+          echo "WORKSPACE: ${{ github.workspace }}"
+          echo "Expected SEO path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json"
+          echo ""
+          echo "📄 Checking required files:"
+          for file in final_article.md input_params.json phase1_output.json; do
+            if [ -f "output/${{ needs.initialize.outputs.article_id }}/$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file NOT found"
+            fi
+          done
+
+      - name: Generate SEO metadata with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            # SEOメタ情報生成
+            
+            記事のSEOメタ情報を生成してください。
+            
+            ## 入力情報
+            
+            ### 完成記事
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html を読み込んでください（Phase 4でファクトチェック済みの最終HTML記事）
+            
+            ### 基本情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
+            - **目標文字数**: ${{ inputs.word_count }}
+            
+            ### Phase 1の分析結果
+            output/${{ needs.initialize.outputs.article_id }}/phase1_output.json から以下の項目を参照：
+            - **メインキーワード**: main_keyword
+            - **関連キーワード**: related_keywords
+            - **検索意図**: search_intent
+            - **メタキーワード**: ${{ inputs.main_keywords }}
+            
+            ## タスク
+            
+            まず、以下のファイルを読み込んで内容を理解してください：
+            - output/${{ needs.initialize.outputs.article_id }}/final_article.html: 記事本文
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json: 分析結果
+            
+            記事内容を分析し、SEOに最適化されたメタ情報を生成してください。
+            
+            ### 1. 記事内容の分析
+            - 実際の文字数カウント
+            - キーワード出現頻度の確認
+            - 主要なポイントの抽出
+            - 読了時間の推定
+            
+            ### 2. SEOメタ情報の生成
+            output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json として以下のJSON形式で保存：
+            
+            ```json
+            {
+              "title": "記事タイトル（60文字以内、検索エンジン表示用）",
+              "meta_description": "記事の要約（120-160文字、検索結果に表示される説明文）",
+              "meta_keywords": ["キーワード1", "キーワード2", "キーワード3", "キーワード4", "キーワード5"],
+              "og_title": "SNS用タイトル（記事タイトルと同じか、より魅力的に調整）",
+              "og_description": "SNS用説明文（meta_descriptionと同じか調整版）",
+              "focus_keyword": "最も重要なメインキーワード",
+              "secondary_keywords": ["サブキーワード1", "サブキーワード2", "サブキーワード3"],
+              "keyword_density": {
+                "メインキーワード": 2.8,
+                "サブキーワード1": 1.5,
+                "サブキーワード2": 1.2
+              },
+              "schema_type": "Article",
+              "estimated_reading_time": "5分",
+              "actual_word_count": 3150,
+              "seo_analysis": {
+                "title_optimization": "検索意図に合致、文字数適切",
+                "keyword_distribution": "自然な配置、過度な詰め込みなし",
+                "content_quality": "高品質、E-E-A-T原則に準拠"
+              },
+              "created_at": "現在時刻"
+            }
+            ```
+            
+            ### 3. SEO最適化のポイント
+            
+            **メタタイトル（title）：**
+            - 60文字以内
+            - メインキーワードを前半に配置
+            - クリックしたくなる魅力的な表現
+            - ペルソナの検索意図に合致
+            
+            **メタディスクリプション：**
+            - 120-160文字
+            - 記事の価値を明確に伝える
+            - 行動を促す表現（「〇〇の方法を解説」など）
+            - 自然にキーワードを含める
+            
+            **キーワード戦略：**
+            - メインキーワードの密度: 2-4%
+            - 関連キーワードの自然な配置
+            - LSIキーワード（関連語）の活用
+            
+            **OGP設定：**
+            - SNSでの見栄えを考慮
+            - 視覚的にインパクトのある表現
+            
+            ### 4. キーワード密度計算方法
+            ```
+            キーワード密度(%) = (キーワード出現回数 / 総単語数) × 100
+            ```
+            
+            ## 注意点
+            
+            1. **自然な日本語**: キーワードを無理に詰め込まない
+            2. **ユーザー視点**: 検索者が求める情報を明確に示す
+            3. **競合差別化**: 他記事との差別化ポイントを強調
+            4. **E-E-A-T**: 専門性・権威性・信頼性を意識
+            5. **ペルソナ最適化**: ターゲット層に響く表現を選択
+          
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORD_COUNT=${{ inputs.word_count }}
+            WORKSPACE=${{ github.workspace }}
+          
+          max_turns: "30"
+
+      - name: Debug - Check Claude execution for SEO
+        run: |
+          echo "🔍 Post-Claude SEO execution check:"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "📁 All files in output directory after Claude SEO:"
+          ls -la output/${{ needs.initialize.outputs.article_id }}/
+          echo ""
+          echo "🔍 Looking for any JSON files created:"
+          find output/${{ needs.initialize.outputs.article_id }}/ -name "*.json" -type f
+
+      - name: Verify SEO metadata output
+        run: |
+          echo "🔍 Checking SEO metadata output..."
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json" ]; then
+            echo "✅ seo_metadata.json created successfully"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json
+          else
+            echo "❌ seo_metadata.json NOT found!"
+            echo "📁 Contents of output directory:"
+            ls -la output/${{ needs.initialize.outputs.article_id }}/ || echo "Directory not found"
+          fi
+
+      - name: Upload SEO metadata artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-meta-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}
+          retention-days: 30
+
+  # ジョブ9: 画像生成（MCP + Imagen4）
+  generate-images:
+    if: ${{ inputs.enable_image_generation }}
+    needs: [initialize, generate-structure]
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Generate Images with Claude + MCP Imagen4
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            記事に最適な画像を複数枚生成してください。合計4-5枚の画像を生成します。
+            
+            タスク:
+            1. 記事内容を理解:
+               - input_params.json でペルソナを確認
+               - final_article.md で記事内容を把握（あれば）
+               - 01_article_structure.md で構成を理解
+            
+            2. 以下の手順で個別に画像を生成:
+               
+               **ステップ1**: ヒーロー画像（16:9）を生成
+               - mcp__gemini-imagen__generate_image を使用
+               - プロンプト: "記事全体のイメージを表現する16:9のヒーロー画像"
+               - ペルソナに合わせたメインビジュアル
+               
+               **ステップ2**: セクション画像1（4:3）を生成  
+               - mcp__gemini-imagen__generate_image を使用
+               - プロンプト: "記事の導入部分を表現する4:3の画像"
+               
+               **ステップ3**: セクション画像2（4:3）を生成
+               - mcp__gemini-imagen__generate_image を使用  
+               - プロンプト: "記事の方法・手順部分を表現する4:3の画像"
+               
+               **ステップ4**: セクション画像3（4:3）を生成
+               - mcp__gemini-imagen__generate_image を使用
+               - プロンプト: "記事の結果・効果部分を表現する4:3の画像"
+               
+               **ステップ5**: セクション画像4（4:3）を生成
+               - mcp__gemini-imagen__generate_image を使用
+               - プロンプト: "記事のまとめ部分を表現する4:3の画像"
+            
+            3. 画像生成の方針（全画像共通）:
+               - ペルソナの年代・性別に合わせたビジュアル
+               - 清潔感と信頼感のあるデザイン
+               - 記事内容と調和したカラーパレット
+               - テキストやロゴは含まない
+               - imagen-4 または imagen-4-ultra を使用
+            
+            4. メタデータ作成:
+               - images/metadata.json に生成情報を記録
+               - 各画像のプロンプト、用途、サイズを記載
+               
+            重要: 必ず5回のmcp__gemini-imagen__generate_imageを実行して、複数枚の画像を生成してください。
+          
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            Read,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "30"
+
+      - name: Process generated images
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          IMAGE_DIR="${ARTICLE_DIR}/images"
+          
+          # MCPサーバーは imagen/ ディレクトリに保存する
+          if [ -d "imagen" ] && [ "$(ls -A imagen 2>/dev/null)" ]; then
+            echo "✅ Images found in imagen directory:"
+            ls -la imagen/
+            
+            # 画像を記事ディレクトリにコピー
+            mkdir -p $IMAGE_DIR
+            cp imagen/*.png $IMAGE_DIR/ 2>/dev/null || true
+            cp imagen/*.jpg $IMAGE_DIR/ 2>/dev/null || true
+            
+            # リネーム（オプション）
+            cd $IMAGE_DIR
+            i=1
+            for img in *.png *.jpg; do
+              if [ -f "$img" ]; then
+                if [ $i -eq 1 ]; then
+                  mv "$img" "hero_image.png" 2>/dev/null || true
+                else
+                  mv "$img" "section_$((i-1))_image.png" 2>/dev/null || true
+                fi
+                i=$((i+1))
+              fi
+            done
+            cd -
+            
+            echo "Final images:"
+            ls -la $IMAGE_DIR
+          else
+            echo "⚠️ No images generated"
+          fi
+
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ needs.initialize.outputs.article_id }}
+          path: |
+            output/${{ needs.initialize.outputs.article_id }}/images
+            imagen/
+          retention-days: 30
+
+  # ジョブ10: 最終処理（5つの成果物）
+  finalize:
+    needs: [initialize, analysis, research-merge, generate-structure, generate-content, factcheck, generate-seo-meta, generate-images]
+    if: always()
+    runs-on: ubuntu-latest
+    environment: GA
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          path: output/${{ needs.initialize.outputs.article_id }}
+          merge-multiple: true
+
+      - name: Create final package with Claude
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          prompt: |
+            # 最終まとめ・成果物整理
+            
+            V4記事生成ワークフローの最終パッケージを作成し、5つの主要成果物を整理してください。
+            
+            ## 入力情報
+            
+            ### Phase 1の成果物
+            output/${{ needs.initialize.outputs.article_id }}/phase1_output.json を読み込んでください
+            
+            ### Phase 2の成果物
+            以下のファイルを読み込んでください：
+            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md: 記事構成
+            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md: コンテンツ計画
+            
+            ### Phase 3の成果物
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html を読み込んでください
+            
+            ### Phase 4の成果物
+            output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json を読み込んでください
+            
+            ### Phase 5の成果物
+            output/${{ needs.initialize.outputs.article_id }}/seo_metadata.json を読み込んでください
+            
+            ### リサーチ情報（まとめ用）
+            output/${{ needs.initialize.outputs.article_id }}/research_results.json を読み込んでください
+            
+            ## タスク
+            
+            ワークフローの出力と同等のクオリティで、以下の成果物を整理・まとめてください。
+            
+            ### 1. 最終成果物リスト（V4準拠）
+            
+            **5つの主要成果物:**
+            1. **research_results.json** - リサーチ結果（信頼性スコア付き）
+            2. **factcheck_report.json** - ファクトチェック品質スコア
+            3. **seo_metadata.json** - SEOメタ情報
+            4. **final_article.html** - 最終記事（HTML形式）
+            5. **deliverables_summary.md** - 成果物説明書
+            
+            ### 2. research_results.json の確認と整理
+            既存のresearch_results.jsonが適切な形式になっているか確認し、必要に応じて以下の形式に整理：
+            
+            ```json
+            {
+              "research_data": [
+                {
+                  "query": "リサーチクエリ",
+                  "results": [
+                    {
+                      "title": "情報源のタイトル",
+                      "url": "https://example.com",
+                      "summary": "要約された内容",
+                      "reliability_score": 85,
+                      "source_type": "academic|news|official|blog",
+                      "publication_date": "2024-01-01",
+                      "relevance_score": 90
+                    }
+                  ]
+                }
+              ],
+              "research_summary": {
+                "total_sources": 15,
+                "average_reliability": 82,
+                "key_findings": [
+                  "重要な発見1",
+                  "重要な発見2",
+                  "重要な発見3"
+                ],
+                "research_gaps": [
+                  "更なる調査が必要な点"
+                ]
+              },
+              "created_at": "現在時刻"
+            }
+            ```
+            
+            ### 3. deliverables_summary.md の作成
+            
+            output/${{ needs.initialize.outputs.article_id }}/deliverables_summary.md として以下の形式で作成：
+            
+            ```markdown
+            # V4記事生成完了レポート
+            
+            ## 基本情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
+            - **生成日時**: [現在日時]
+            - **総文字数**: [実際の文字数]文字
+            
+            ## 成果物概要
+            
+            ### 1. final_article.html - 最終記事
+            - **形式**: HTML（<div class="article-content">形式）
+            - **特徴**: 
+              - ペルソナ最適化済み
+              - 出典リンク付き（5つ以上）
+              - 薬機法・景表法対応
+              - CTA最適化済み
+            
+            ### 2. research_results.json - リサーチ結果
+            - **収集ソース数**: [実際の数]件
+            - **平均信頼性スコア**: [実際のスコア]点
+            - **主要発見**: 
+              - [実際の発見をリストアップ]
+            
+            ### 3. factcheck_report.json - 品質スコア
+            - **総合品質スコア**: [実際のスコア]点/100点
+            - **事実正確性**: [実際のスコア]点/100点
+            - **法規制遵守**: [実際のスコア]点/100点
+            - **科学的妥当性**: [実際のスコア]点/100点
+            - **修正箇所**: [実際の数]件（全て対応済み）
+            
+            ### 4. seo_metadata.json - SEO情報
+            - **メインキーワード**: [実際のキーワード]
+            - **キーワード密度**: [実際の密度]%（適正範囲）
+            - **メタディスクリプション**: 最適化済み（[実際の文字数]文字）
+            - **推定読了時間**: [実際の時間]分
+            
+            ### 5. 画像配置情報
+            - **ヒーロー画像**: セクション導入用
+            - **セクション画像**: 各主要セクションに配置
+            - **説明画像**: 手順・方法の視覚的説明用
+            - **総画像数**: [実際の数]枚（記事内配置済み）
+            
+            ## 品質評価サマリー
+            
+            ### 強み
+            - [Phase 4で評価された実際の強みをリストアップ]
+            
+            ### 改善対応
+            - [実際に修正された問題点をリストアップ]
+            
+            ## ペルソナ最適化のポイント
+            - **言葉遣い**: [ペルソナに合わせた表現レベル]
+            - **内容深度**: [ペルソナの知識レベルに適合]
+            - **関心領域**: [ペルソナの興味・悩みに対応]
+            - **行動喚起**: [ペルソナの行動パターンに最適化]
+            
+            ## SEO最適化サマリー
+            - **検索意図**: [検索意図] に最適化
+            - **競合優位性**: [他記事との差別化ポイント]
+            - **E-E-A-T対応**: 専門性・権威性・信頼性を確保
+            
+            ## 法規制対応
+            - **薬機法**: 効果効能の適切な表現
+            - **景表法**: 優良誤認の防止
+            - **表現調整**: [具体的な調整内容]
+            
+            ## 次のアクション（推奨）
+            1. **公開前確認**: 最終的な校正・確認
+            2. **画像最適化**: alt属性とファイル名の最適化
+            3. **内部リンク**: 関連記事との連携
+            4. **効果測定**: 公開後のパフォーマンス分析
+            
+            ## 制作ノート
+            - **制作時間**: 約[X]時間（6フェーズ）
+            - **修正回数**: [実際の回数]回
+            - **特記事項**: [特別な配慮事項があれば記載]
+            ```
+            
+            ## 品質保証チェック
+            
+            ### 成果物の完全性確認
+            - 5つの主要成果物が全て揃っていることを確認
+            - JSONファイルの構文が正しいことを確認
+            - HTMLの構造が正しいことを確認
+            - リンクが正しく機能することを確認
+            - 文字数が要件を満たしていることを確認
+            
+            ### 内容の一貫性確認
+            - 全フェーズの内容が整合していることを確認
+            - キーワードが一貫して使用されていることを確認
+            - ペルソナ設定が全体で統一されていることを確認
+            - 品質基準を満たしていることを確認
+            
+            ## 注意点
+            - 全てのファイルが存在することを確認
+            - スコアや統計は実際のデータから抽出して記載
+            - プレースホルダー（[実際の〜]）は実際の値に置き換える
+            - 不要なファイルは削除しない（制作側で選択）
+          
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
+
+      # Google Drive upload removed - using GitHub Artifacts only
+
+      - name: Create workflow summary
+        if: always()
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          
+          echo "## 📝 Article Generation V4 Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Strategy:** v3 (Strict Template Compliance)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Article ID:** ${{ needs.initialize.outputs.article_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Generation Status:** ${{ needs.generate_article.outputs.generation_status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Quality Score:** ${{ needs.generate_article.outputs.quality_score }}/100" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image Generation:** ${{ inputs.enable_image_generation }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Template Compliance:** ARTICLE-TEMPLATE-README.md" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Input Parameters" >> $GITHUB_STEP_SUMMARY
+          echo "- **Title**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🎯 V4 Deliverables" >> $GITHUB_STEP_SUMMARY
+          echo "1. **research_results.json** - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
+          echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
+          echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
+          echo "4. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
+          echo "5. **final_article.html** - HTML article with embedded images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
+            echo "### 📊 Generation Summary" >> $GITHUB_STEP_SUMMARY
+            cat "$ARTICLE_DIR/V4_deliverables.md" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -d "$ARTICLE_DIR/images" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🖼️ Generated Images" >> $GITHUB_STEP_SUMMARY
+            echo "- Image count: $(find $ARTICLE_DIR/images -name "*.png" -o -name "*.jpg" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create organized final package
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          FINAL_DIR="final_package"
+          
+          # 詳細デバッグ: アーティファクトとファイルの確認
+          echo "====== FINAL PACKAGE CREATION DEBUG ======"
+          echo "🔍 ARTICLE_DIR: $ARTICLE_DIR"
+          echo "📁 Article directory check:"
+          [ -d "$ARTICLE_DIR" ] && echo "✅ Directory exists" || echo "❌ Directory NOT found"
+          
+          echo ""
+          echo "📋 All downloaded artifacts and files:"
+          find . -name "*.json" -o -name "*.md" -o -name "*.png" -o -name "*.jpg" | head -20
+          
+          echo ""
+          echo "🖼️ Specifically looking for images:"
+          echo "PNG files:"
+          find . -name "*.png" -type f 2>/dev/null | head -10
+          echo "JPG files:"
+          find . -name "*.jpg" -o -name "*.jpeg" -type f 2>/dev/null | head -10
+          echo ""
+          echo "Image directories:"
+          find . -name "images" -type d 2>/dev/null
+          find . -name "imagen" -type d 2>/dev/null
+          
+          echo ""
+          echo "🔍 Current working directory contents:"
+          ls -la
+          
+          echo ""
+          echo "🔍 Specifically looking for factcheck and SEO files:"
+          echo "Factcheck files:"
+          find . -name "*factcheck*" -type f 2>/dev/null || echo "No factcheck files found"
+          echo "SEO files:"
+          find . -name "*seo*" -type f 2>/dev/null || echo "No SEO files found"
+          
+          echo ""
+          echo "🔍 Output directory contents:"
+          if [ -d "output/" ]; then
+            find output/ -type f | head -20
+          else
+            echo "❌ No output directory found"
+          fi
+          
+          echo "=============================================="
+          
+          # 最終パッケージ用のディレクトリを作成
+          mkdir -p $FINAL_DIR
+          
+          # V4の4つの成果物を収集（アーティファクトから直接）
+          echo ""
+          echo "🔄 Collecting V4 deliverables from artifacts..."
+          
+          # 1. メイン記事 (HTML) - アーティファクトから検索
+          ARTICLE_FOUND=false
+          
+          # 複数の場所から記事ファイルを検索
+          POSSIBLE_ARTICLES=(
+            "$ARTICLE_DIR/final_article.html"
+            "$ARTICLE_DIR/article.html"
+            "final_article.html"
+            "article.html"
+          )
+          
+          for article_path in "${POSSIBLE_ARTICLES[@]}"; do
+            if [ -f "$article_path" ]; then
+              cp "$article_path" "$FINAL_DIR/article.html"
+              echo "✅ Found and copied article: $article_path ($(wc -c < "$article_path") bytes)"
+              ARTICLE_FOUND=true
+              break
+            fi
+          done
+          
+          # 記事が見つからない場合は.htmlファイルを検索
+          if [ "$ARTICLE_FOUND" = false ]; then
+            echo "⚠️ Standard article files not found, searching for any .html files..."
+            HTML_FILE=$(find . -name "*.html" -type f ! -name "index.html" | head -1)
+            if [ -n "$HTML_FILE" ]; then
+              cp "$HTML_FILE" "$FINAL_DIR/article.html"
+              echo "✅ Using fallback .html file: $HTML_FILE ($(wc -c < "$HTML_FILE") bytes)"
+              ARTICLE_FOUND=true
+            fi
+          fi
+          
+          if [ "$ARTICLE_FOUND" = false ]; then
+            echo "❌ ERROR: No article file found in any location!"
+            echo "Creating minimal article as last resort..."
+            echo '<div class="article-content"><h2>記事生成エラー</h2><p>記事ファイルが見つかりませんでした。ワークフローの実行ログを確認してください。</p></div>' > "$FINAL_DIR/article.html"
+          fi
+          
+          # 2. リサーチ結果 - 複数の場所から検索
+          RESEARCH_LOCATIONS=(
+            "$ARTICLE_DIR/research_results.json"
+            "research_results.json"
+            "research-*.json"
+          )
+          
+          RESEARCH_FOUND=false
+          for loc in "${RESEARCH_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/research_results.json"
+              echo "✅ Found research results: $loc"
+              RESEARCH_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$RESEARCH_FOUND" = false ]; then
+            # 検索パターンを使用
+            RESEARCH_FILE=$(find . -name "*research*.json" | head -1)
+            if [ -n "$RESEARCH_FILE" ]; then
+              cp "$RESEARCH_FILE" "$FINAL_DIR/research_results.json"
+              echo "✅ Using research file: $RESEARCH_FILE"
+            else
+              echo "⚠️ No research results found"
+            fi
+          fi
+          
+          # 3. SEOメタデータ - 複数の場所から検索
+          SEO_LOCATIONS=(
+            "$ARTICLE_DIR/seo_metadata.json"
+            "seo_metadata.json"
+            "seo-*.json"
+          )
+          
+          SEO_FOUND=false
+          for loc in "${SEO_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/seo_metadata.json"
+              echo "✅ Found SEO metadata: $loc"
+              SEO_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$SEO_FOUND" = false ]; then
+            echo "⚠️ No SEO metadata found"
+            echo "📁 Searching for SEO metadata files..."
+            find . -name "*seo*.json" -type f 2>/dev/null | head -10
+          fi
+          
+          # 4. ファクトチェック品質レポート - 複数の場所から検索
+          FACTCHECK_LOCATIONS=(
+            "$ARTICLE_DIR/factcheck_report.json"
+            "factcheck_report.json"
+            "factcheck-*.json"
+          )
+          
+          FACTCHECK_FOUND=false
+          for loc in "${FACTCHECK_LOCATIONS[@]}"; do
+            if [ -f "$loc" ]; then
+              cp "$loc" "$FINAL_DIR/factcheck_report.json"
+              echo "✅ Found factcheck report: $loc"
+              FACTCHECK_FOUND=true
+              break
+            fi
+          done
+          
+          if [ "$FACTCHECK_FOUND" = false ]; then
+            # 検索パターンを使用
+            FACTCHECK_FILE=$(find . -name "*factcheck*.json" | head -1)
+            if [ -n "$FACTCHECK_FILE" ]; then
+              cp "$FACTCHECK_FILE" "$FINAL_DIR/factcheck_report.json"
+              echo "✅ Using factcheck file: $FACTCHECK_FILE"
+            else
+              echo "⚠️ No factcheck report found"
+              echo "📁 Searching for factcheck files..."
+              find . -name "*factcheck*.json" -type f 2>/dev/null | head -10
+            fi
+          fi
+          
+          # 5. 画像フォルダ - 複数の場所から検索
+          mkdir -p "$FINAL_DIR/images"
+          IMAGES_FOUND=false
+          
+          # 標準的な画像フォルダの場所
+          if [ -d "$ARTICLE_DIR/images" ]; then
+            cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
+            echo "✅ Found images in $ARTICLE_DIR/images"
+            IMAGES_FOUND=true
+          fi
+          
+          # imagen/ フォルダから画像を検索（MCP画像生成の場所）
+          if [ -d "imagen" ]; then
+            echo "📁 Checking imagen/ directory for MCP generated images..."
+            cp imagen/*.png "$FINAL_DIR/images/" 2>/dev/null || true
+            cp imagen/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+            if [ "$(ls -A imagen/*.png 2>/dev/null)" ] || [ "$(ls -A imagen/*.jpg 2>/dev/null)" ]; then
+              echo "✅ Found images in imagen/"
+              IMAGES_FOUND=true
+            fi
+          fi
+          
+          # images-*/output/*/images/ から画像を検索（アーティファクトの構造）
+          IMAGE_ARTIFACT_PATHS=$(find . -path "*/images-*/output/*/images" -type d 2>/dev/null)
+          if [ -n "$IMAGE_ARTIFACT_PATHS" ]; then
+            for img_path in $IMAGE_ARTIFACT_PATHS; do
+              echo "📁 Found image artifact path: $img_path"
+              cp "$img_path"/*.png "$FINAL_DIR/images/" 2>/dev/null || true
+              cp "$img_path"/*.jpg "$FINAL_DIR/images/" 2>/dev/null || true
+              IMAGES_FOUND=true
+            done
+          fi
+          
+          # 直接 output/*/images または output/*/imagen から検索
+          if [ -d "$ARTICLE_DIR/images" ] || [ -d "$ARTICLE_DIR/imagen" ]; then
+            echo "📁 Checking output artifact directories..."
+            [ -d "$ARTICLE_DIR/images" ] && cp -r "$ARTICLE_DIR/images/"* "$FINAL_DIR/images/" 2>/dev/null || true
+            [ -d "$ARTICLE_DIR/imagen" ] && cp -r "$ARTICLE_DIR/imagen/"* "$FINAL_DIR/images/" 2>/dev/null || true
+            IMAGES_FOUND=true
+          fi
+          
+          # その他の場所から画像を検索（最後の手段）
+          if [ "$IMAGES_FOUND" = false ]; then
+            echo "⚠️ Standard image locations not found, searching all directories..."
+            find . -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | while read img; do
+              if [[ "$img" != *"README"* ]] && [[ "$img" != *"node_modules"* ]]; then
+                cp "$img" "$FINAL_DIR/images/" 2>/dev/null || true
+                echo "✅ Found image: $img"
+                IMAGES_FOUND=true
+              fi
+            done
+          fi
+          
+          # 画像フォルダの内容を確認
+          echo "📁 Final images directory contents:"
+          ls -la "$FINAL_DIR/images/" 2>/dev/null || echo "No images directory created"
+          
+          
+          # V4成果物説明
+          if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
+            cp "$ARTICLE_DIR/V4_deliverables.md" "$FINAL_DIR/deliverables.md"
+          fi
+          
+          # 最終パッケージの内容確認
+          echo ""
+          echo "📦 Final package contents:"
+          find "$FINAL_DIR" -type f -exec ls -la {} \;
+          
+          # README作成
+          echo "# V4 記事生成完了パッケージ（制作向け簡易版）" > "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "**記事タイトル**: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
+          echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
+          echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 📁 V4成果物（5点）" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "1. **article.html** - 記事本文（HTML形式、画像配置済み）" >> "$FINAL_DIR/README.md"
+          echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
+          echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
+          echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
+          echo "5. **images/** - 生成画像（各セクション用）" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> "$FINAL_DIR/README.md"
+          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> "$FINAL_DIR/README.md"
+          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "## 📝 備考" >> "$FINAL_DIR/README.md"
+          echo "" >> "$FINAL_DIR/README.md"
+          echo "- **article.html**: 指定テンプレート形式のHTML（<div class=\"article-content\">で開始）" >> "$FINAL_DIR/README.md"
+          echo "- 画像は各セクションに配置済み" >> "$FINAL_DIR/README.md"
+          echo "- 追加のスタイルやSEO構造化が必要な場合は制作側で実施してください" >> "$FINAL_DIR/README.md"
+          
+          echo "📦 V4 final package created in: $FINAL_DIR"
+          ls -la $FINAL_DIR/
+
+      - name: Upload final package
+        uses: actions/upload-artifact@v4
+        with:
+          name: FINAL_V4_ARTICLE_PACKAGE
+          path: final_package
+          retention-days: 30
+
