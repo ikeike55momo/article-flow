@@ -615,9 +615,13 @@ jobs:
             
             ## 生成の指示
             
-            output/${{ needs.initialize.outputs.article_id }}/final_article.html として、
-            `<div class="article-content">` で開始し `</div>` で終了する完全なHTMLコードを保存してください。
-            インラインスタイル（`<style>`タグ）は含めないでください。
+            以下の手順で記事を生成してください：
+            
+            1. **必ずWriteツールを使用して** `output/${{ needs.initialize.outputs.article_id }}/final_article.html` というファイルパスで新規ファイルを作成
+            2. そのファイルに、`<div class="article-content">` で開始し `</div>` で終了する完全なHTMLコードを書き込む
+            3. インラインスタイル（`<style>`タグ）は含めない
+            
+            **重要**: ファイル名は必ず `final_article.html` とし、パスは `output/${{ needs.initialize.outputs.article_id }}/` 配下に配置してください。
             
             文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
             
