@@ -138,33 +138,33 @@ jobs:
             記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
             
             ## 入力情報
-            - **記事タイトル**: ${{ inputs.article_title }}
-            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
-            - **メタキーワード**: ${{ inputs.main_keywords }}
-            - **目標文字数**: ${{ inputs.word_count }}
+            - <strong>記事タイトル</strong>: ${{ inputs.article_title }}
+            - <strong>ターゲットペルソナ</strong>: ${{ inputs.approach_target }}
+            - <strong>メタキーワード</strong>: ${{ inputs.main_keywords }}
+            - <strong>目標文字数</strong>: ${{ inputs.word_count }}
             
             ## タスク
             まず、output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解した後、以下の分析を実行してください：
             
-            1. **メインキーワードの特定**
+            1. <strong>メインキーワードの特定</strong>
                - 記事タイトルとメタキーワードから最も重要なキーワードを1つ選定
             
-            2. **関連キーワードの抽出**
+            2. <strong>関連キーワードの抽出</strong>
                - メインキーワードに関連する重要キーワード5-8個を抽出
             
-            3. **検索意図の分析**
+            3. <strong>検索意図の分析</strong>
                - informational（情報収集）、navigational（特定サイト検索）、transactional（購入意図）、commercial（比較検討）のいずれかを判定
             
-            4. **コンテンツタイプの決定**
+            4. <strong>コンテンツタイプの決定</strong>
                - how-to（方法・手順）、guide（総合ガイド）、comparison（比較）、review（レビュー）、tips（コツ・アドバイス）のいずれかを選択
             
-            5. **トーンの設定**
+            5. <strong>トーンの設定</strong>
                - friendly（親しみやすい）、professional（専門的）、casual（カジュアル）、authoritative（権威的）のいずれかを選択
             
-            6. **キーポイントの抽出**
+            6. <strong>キーポイントの抽出</strong>
                - ペルソナが知りたい重要なポイント3-5個
             
-            7. **リサーチクエリの生成**
+            7. <strong>リサーチクエリの生成</strong>
                - 記事作成のために調べるべき検索クエリ15-25個を生成
             
             ## 出力形式
@@ -443,11 +443,11 @@ jobs:
             
             ## 出力要件
             
-            - **読者ファースト**: SEOよりもペルソナの価値を重視
-            - **論理的な流れ**: 読者の疑問が自然に解決される構成
-            - **実用性**: 具体的で実践しやすい内容
-            - **信頼性**: リサーチ結果に基づいた正確な情報
-            - **法規制対応**: 薬機法・景表法に配慮した表現計画
+            - <strong>読者ファースト</strong>: SEOよりもペルソナの価値を重視
+            - <strong>論理的な流れ</strong>: 読者の疑問が自然に解決される構成
+            - <strong>実用性</strong>: 具体的で実践しやすい内容
+            - <strong>信頼性</strong>: リサーチ結果に基づいた正確な情報
+            - <strong>法規制対応</strong>: 薬機法・景表法に配慮した表現計画
           
           allowed_tools: |
             Read,
@@ -497,9 +497,9 @@ jobs:
             ## 入力情報
             
             ### 基本情報
-            - **記事タイトル**: ${{ inputs.article_title }}
-            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
-            - **目標文字数**: ${{ inputs.word_count }}
+            - <strong>記事タイトル</strong>: ${{ inputs.article_title }}
+            - <strong>ターゲットペルソナ</strong>: ${{ inputs.approach_target }}
+            - <strong>目標文字数</strong>: ${{ inputs.word_count }}
             
             ## タスク
             
@@ -528,12 +528,12 @@ jobs:
             
             標準パーツ：
             
-            **導入部分：**
+            <strong>導入部分：</strong>
             - 信頼性バッジ: `<div class="article-expert-badge">`
             - リードテキスト: `<p class="article-lead-text">`
             - 目次: `<div class="article-toc">` （アンカーリンクを正しく設定）
             
-            **本文パーツ：**
+            <strong>本文パーツ：</strong>
             - ハイライトボックス（1セクション1個まで）: `<div class="article-highlight-box">`
             - ステップリスト: `<ol class="article-steps-list">`
             - 比較テーブル: `<table class="article-comparison-table">`
@@ -579,22 +579,22 @@ jobs:
             
             ### 5. strongタグの使用ガイドライン
             
-            **使用する場所：**
+            <strong>使用する場所：</strong>
             - 文章内の重要なポイント
             - 注意点、推奨事項
             - 成功のコツ
             - 読者の理解を助ける強調
             
-            **使用しない場所：**
+            <strong>使用しない場所：</strong>
             - ラベル（「住所：」など）
             - 項目名・見出し
             - 短い単語やラベル
             
             ### 6. ハイライトボックスの使用制限
             
-            - **導入部分**: 積極的に使用推奨
-            - **メインセクション内**: 1セクション1個まで、本当に重要な情報のみ
-            - **過度な使用は避ける**: 基本はh3+p構造を使用
+            - <strong>導入部分</strong>: 積極的に使用推奨
+            - <strong>メインセクション内</strong>: 1セクション1個まで、本当に重要な情報のみ
+            - <strong>過度な使用は避ける</strong>: 基本はh3+p構造を使用
             
             ### 7. ブログカードの配置（任意）
             
@@ -617,17 +617,17 @@ jobs:
             
             以下の手順で記事を生成してください：
             
-            1. **必ずWriteツールを使用して** `output/${{ needs.initialize.outputs.article_id }}/final_article.html` というファイルパスで新規ファイルを作成
+            1. <strong>必ずWriteツールを使用して</strong> `output/${{ needs.initialize.outputs.article_id }}/final_article.html` というファイルパスで新規ファイルを作成
             2. そのファイルに、`<div class="article-content">` で開始し `</div>` で終了する完全なHTMLコードを書き込む
             3. インラインスタイル（`<style>`タグ）は含めない
             
-            **重要**: ファイル名は必ず `final_article.html` とし、パスは `output/${{ needs.initialize.outputs.article_id }}/` 配下に配置してください。
+            <strong>重要</strong>: ファイル名は必ず `final_article.html` とし、パスは `output/${{ needs.initialize.outputs.article_id }}/` 配下に配置してください。
             
             文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
             
             ## 品質チェックリスト
             
-            - **ARTICLE-TEMPLATE-README.md仕様に完全準拠**
+            - <strong>ARTICLE-TEMPLATE-README.md仕様に完全準拠</strong>
             - Phase 2の構成通りのセクション構成
             - セマンティックなHTML構造
             - strongタグの適切な使用（文章内の重要ポイントのみ）
@@ -984,24 +984,24 @@ jobs:
             
             ### 3. SEO最適化のポイント
             
-            **メタタイトル（title）：**
+            <strong>メタタイトル（title）：</strong>
             - 60文字以内
             - メインキーワードを前半に配置
             - クリックしたくなる魅力的な表現
             - ペルソナの検索意図に合致
             
-            **メタディスクリプション：**
+            <strong>メタディスクリプション：</strong>
             - 120-160文字
             - 記事の価値を明確に伝える
             - 行動を促す表現（「〇〇の方法を解説」など）
             - 自然にキーワードを含める
             
-            **キーワード戦略：**
+            <strong>キーワード戦略：</strong>
             - メインキーワードの密度: 2-4%
             - 関連キーワードの自然な配置
             - LSIキーワード（関連語）の活用
             
-            **OGP設定：**
+            <strong>OGP設定：</strong>
             - SNSでの見栄えを考慮
             - 視覚的にインパクトのある表現
             
@@ -1258,12 +1258,12 @@ jobs:
             
             ### 1. 最終成果物リスト（V4準拠）
             
-            **5つの主要成果物:**
-            1. **research_results.json** - リサーチ結果（信頼性スコア付き）
-            2. **factcheck_report.json** - ファクトチェック品質スコア
-            3. **seo_metadata.json** - SEOメタ情報
-            4. **final_article.html** - 最終記事（HTML形式）
-            5. **deliverables_summary.md** - 成果物説明書
+            <strong>5つの主要成果物:</strong>
+            1. <strong>research_results.json</strong> - リサーチ結果（信頼性スコア付き）
+            2. <strong>factcheck_report.json</strong> - ファクトチェック品質スコア
+            3. <strong>seo_metadata.json</strong> - SEOメタ情報
+            4. <strong>final_article.html</strong> - 最終記事（HTML形式）
+            5. <strong>deliverables_summary.md</strong> - 成果物説明書
             
             ### 2. research_results.json の確認と整理
             既存のresearch_results.jsonが適切な形式になっているか確認し、必要に応じて以下の形式に整理：
@@ -1310,45 +1310,45 @@ jobs:
             # V4記事生成完了レポート
             
             ## 基本情報
-            - **記事タイトル**: ${{ inputs.article_title }}
-            - **ターゲットペルソナ**: ${{ inputs.approach_target }}
-            - **生成日時**: [現在日時]
-            - **総文字数**: [実際の文字数]文字
+            - <strong>記事タイトル</strong>: ${{ inputs.article_title }}
+            - <strong>ターゲットペルソナ</strong>: ${{ inputs.approach_target }}
+            - <strong>生成日時</strong>: [現在日時]
+            - <strong>総文字数</strong>: [実際の文字数]文字
             
             ## 成果物概要
             
             ### 1. final_article.html - 最終記事
-            - **形式**: HTML（<div class="article-content">形式）
-            - **特徴**: 
+            - <strong>形式</strong>: HTML（<div class="article-content">形式）
+            - <strong>特徴</strong>: 
               - ペルソナ最適化済み
               - 出典リンク付き（5つ以上）
               - 薬機法・景表法対応
               - CTA最適化済み
             
             ### 2. research_results.json - リサーチ結果
-            - **収集ソース数**: [実際の数]件
-            - **平均信頼性スコア**: [実際のスコア]点
-            - **主要発見**: 
+            - <strong>収集ソース数</strong>: [実際の数]件
+            - <strong>平均信頼性スコア</strong>: [実際のスコア]点
+            - <strong>主要発見</strong>: 
               - [実際の発見をリストアップ]
             
             ### 3. factcheck_report.json - 品質スコア
-            - **総合品質スコア**: [実際のスコア]点/100点
-            - **事実正確性**: [実際のスコア]点/100点
-            - **法規制遵守**: [実際のスコア]点/100点
-            - **科学的妥当性**: [実際のスコア]点/100点
-            - **修正箇所**: [実際の数]件（全て対応済み）
+            - <strong>総合品質スコア</strong>: [実際のスコア]点/100点
+            - <strong>事実正確性</strong>: [実際のスコア]点/100点
+            - <strong>法規制遵守</strong>: [実際のスコア]点/100点
+            - <strong>科学的妥当性</strong>: [実際のスコア]点/100点
+            - <strong>修正箇所</strong>: [実際の数]件（全て対応済み）
             
             ### 4. seo_metadata.json - SEO情報
-            - **メインキーワード**: [実際のキーワード]
-            - **キーワード密度**: [実際の密度]%（適正範囲）
-            - **メタディスクリプション**: 最適化済み（[実際の文字数]文字）
-            - **推定読了時間**: [実際の時間]分
+            - <strong>メインキーワード</strong>: [実際のキーワード]
+            - <strong>キーワード密度</strong>: [実際の密度]%（適正範囲）
+            - <strong>メタディスクリプション</strong>: 最適化済み（[実際の文字数]文字）
+            - <strong>推定読了時間</strong>: [実際の時間]分
             
             ### 5. 画像配置情報
-            - **ヒーロー画像**: セクション導入用
-            - **セクション画像**: 各主要セクションに配置
-            - **説明画像**: 手順・方法の視覚的説明用
-            - **総画像数**: [実際の数]枚（記事内配置済み）
+            - <strong>ヒーロー画像</strong>: セクション導入用
+            - <strong>セクション画像</strong>: 各主要セクションに配置
+            - <strong>説明画像</strong>: 手順・方法の視覚的説明用
+            - <strong>総画像数</strong>: [実際の数]枚（記事内配置済み）
             
             ## 品質評価サマリー
             
@@ -1427,18 +1427,18 @@ jobs:
           echo "## 📝 Article Generation V4 Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Input Parameters" >> $GITHUB_STEP_SUMMARY
-          echo "- **Title**: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> $GITHUB_STEP_SUMMARY
+          echo "- <strong>Title</strong>: ${{ inputs.article_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- <strong>切り口・ターゲット</strong>: ${{ inputs.approach_target }}" >> $GITHUB_STEP_SUMMARY
+          echo "- <strong>主要KW</strong>: ${{ inputs.main_keywords }}" >> $GITHUB_STEP_SUMMARY
+          echo "- <strong>E-E-A-T要素</strong>: ${{ inputs.eeat_elements }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### 🎯 V4 Deliverables" >> $GITHUB_STEP_SUMMARY
-          echo "1. **research_results.json** - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
-          echo "2. **factcheck_report.json** - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
-          echo "3. **seo_metadata.json** - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
-          echo "4. **images/** - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
-          echo "5. **final_article.html** - HTML article with embedded images" >> $GITHUB_STEP_SUMMARY
+          echo "1. <strong>research_results.json</strong> - Research data with reliability scores" >> $GITHUB_STEP_SUMMARY
+          echo "2. <strong>factcheck_report.json</strong> - Quality scores and fact-checking results" >> $GITHUB_STEP_SUMMARY
+          echo "3. <strong>seo_metadata.json</strong> - SEO metadata (keywords, meta description, etc.)" >> $GITHUB_STEP_SUMMARY
+          echo "4. <strong>images/</strong> - Generated images (hero + section images)" >> $GITHUB_STEP_SUMMARY  
+          echo "5. <strong>final_article.html</strong> - HTML article with embedded images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f "$ARTICLE_DIR/V4_deliverables.md" ]; then
@@ -1695,27 +1695,27 @@ jobs:
           # README作成
           echo "# V4 記事生成完了パッケージ（制作向け簡易版）" > "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "**記事タイトル**: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
-          echo "**生成日時**: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
-          echo "**記事ID**: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
+          echo "<strong>記事タイトル</strong>: ${{ inputs.article_title }}" >> "$FINAL_DIR/README.md"
+          echo "<strong>生成日時</strong>: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$FINAL_DIR/README.md"
+          echo "<strong>記事ID</strong>: ${{ needs.initialize.outputs.article_id }}" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📁 V4成果物（5点）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "1. **article.html** - 記事本文（HTML形式、画像配置済み）" >> "$FINAL_DIR/README.md"
-          echo "2. **research_results.json** - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
-          echo "3. **factcheck_report.json** - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
-          echo "4. **seo_metadata.json** - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
-          echo "5. **images/** - 生成画像（各セクション用）" >> "$FINAL_DIR/README.md"
+          echo "1. <strong>article.html</strong> - 記事本文（HTML形式、画像配置済み）" >> "$FINAL_DIR/README.md"
+          echo "2. <strong>research_results.json</strong> - リサーチ結果（信頼性スコア付き）" >> "$FINAL_DIR/README.md"
+          echo "3. <strong>factcheck_report.json</strong> - ファクトチェック品質スコア（0-100点）" >> "$FINAL_DIR/README.md"
+          echo "4. <strong>seo_metadata.json</strong> - SEOメタ情報（キーワード、メタディスクリプション等）" >> "$FINAL_DIR/README.md"
+          echo "5. <strong>images/</strong> - 生成画像（各セクション用）" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 🎯 ターゲット情報" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "- **切り口・ターゲット**: ${{ inputs.approach_target }}" >> "$FINAL_DIR/README.md"
-          echo "- **主要KW**: ${{ inputs.main_keywords }}" >> "$FINAL_DIR/README.md"
-          echo "- **E-E-A-T要素**: ${{ inputs.eeat_elements }}" >> "$FINAL_DIR/README.md"
+          echo "- <strong>切り口・ターゲット</strong>: ${{ inputs.approach_target }}" >> "$FINAL_DIR/README.md"
+          echo "- <strong>主要KW</strong>: ${{ inputs.main_keywords }}" >> "$FINAL_DIR/README.md"
+          echo "- <strong>E-E-A-T要素</strong>: ${{ inputs.eeat_elements }}" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
           echo "## 📝 備考" >> "$FINAL_DIR/README.md"
           echo "" >> "$FINAL_DIR/README.md"
-          echo "- **article.html**: 指定テンプレート形式のHTML（<div class=\"article-content\">で開始）" >> "$FINAL_DIR/README.md"
+          echo "- <strong>article.html</strong>: 指定テンプレート形式のHTML（<div class=\"article-content\">で開始）" >> "$FINAL_DIR/README.md"
           echo "- 画像は各セクションに配置済み" >> "$FINAL_DIR/README.md"
           echo "- 追加のスタイルやSEO構造化が必要な場合は制作側で実施してください" >> "$FINAL_DIR/README.md"
           
