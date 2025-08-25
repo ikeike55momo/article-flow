@@ -133,9 +133,10 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            # 記事リクエスト分析
+            # 記事リクエスト分析（ARTICLE-TEMPLATE-README.md準拠）
             
             記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
+            **注意：最終的にARTICLE-TEMPLATE-README.mdのCSSクラス仕様に完全準拠したHTMLを生成することを前提に分析してください。**
             
             ## 入力情報
             - <strong>記事タイトル</strong>: ${{ inputs.article_title }}
@@ -509,19 +510,20 @@ jobs:
             - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md: Phase 2のコンテンツ計画
             - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果（出典URL含む）
             
-            ## 記事生成ルール（ARTICLE-TEMPLATE-README.md準拠）
+            ## 記事生成ルール（ARTICLE-TEMPLATE-README.md完全準拠）
             
             ### 1. 基本方針
             - **Phase 2の構成を忠実に実装**してください
             - WordPressのHTMLブロックに貼り付けることを前提
             - セマンティックで読みやすいHTMLを生成
+            - **重要：これはCSSクラス名の仕様書です。記事構成ではなくHTMLパーツ集です**
             
             ### 2. HTML構造の要件
             
             基本構造（必須）：
             ```html
             <div class="article-content">
-              <!-- 記事全体をこのコンテナで囲む -->
+              <!-- 記事全体をこのコンテナで囲む（1記事に1つのみ） -->
               <!-- 以下、Phase 2の構成に従って記事を展開 -->
             </div>
             ```
@@ -534,36 +536,72 @@ jobs:
             - 目次: `<div class="article-toc">` （アンカーリンクを正しく設定）
             
             <strong>本文パーツ：</strong>
-            - ハイライトボックス（1セクション1個まで）: `<div class="article-highlight-box">`
+            - ハイライトボックス（**重要：1セクション1個まで厳守**）: `<div class="article-highlight-box">`
             - ステップリスト: `<ol class="article-steps-list">`
             - 比較テーブル: `<table class="article-comparison-table">`
             - 引用ブロック: `<div class="article-quote">`
+            - 引用元注記: `<span class="quote-source">`
             
-            ### 3. FAQ部分（重要：構造を正確に）
+            <strong>レビューカード（お客様の声）：</strong>
+            - レビューカード全体: `<div class="review-cards-section">`
+            - 個別レビューカード: `<div class="review-card">`
+            - アバター画像: `<div class="review-avatar">`
+            - レビュー内容部分: `<div class="review-content">`
+            - 投稿者情報: `<h3 class="review-author">`
+            - レビューテキスト: `<p class="review-text">`
+            
+            <strong>画像・メディア：</strong>
+            - 画像コンテナ: `<div class="article-content-image">`
+            - 画像本体: `<img>` （article-content-image内）
+            - 画像キャプション: `<figcaption>`
+            
+            <strong>セクション要素：</strong>
+            - まとめセクション: `<section class="article-summary-section">`
+            - CTAセクション: `<section class="article-cta-section">`
+            - CTAボタン: `<a class="article-cta-button">`
+            - 関連記事セクション: `<section class="article-related-section">`
+            - 参考資料セクション: `<section class="article-reference-section">`
+            - 信頼性情報: `<div class="article-reliability-info">`
+            
+            ### 3. FAQ部分（重要：構造を正確に・ID重複エラー防止）
             
             ```html
             <div class="article-faq-section">
               <h2>よくある質問</h2>
               
               <div class="article-faq-item">
-                <input type="checkbox" id="faq1">
-                <label for="faq1" class="article-faq-question">
-                  <span>Q1: 質問内容</span>
+                <input type="checkbox" id="faq1">  <!-- 必ず一意のID -->
+                <label for="faq1" class="article-faq-question">  <!-- IDと完全一致 -->
+                  <span>Q1: 質問内容</span>  <!-- 必ずspan要素で囲む -->
                 </label>
                 <div class="article-faq-answer">A1: 回答内容</div>
               </div>
+              <!-- faq2, faq3... と連番で続ける -->
             </div>
             ```
+            
+            **FAQエラー防止チェック：**
+            - 各FAQ項目で**ページ内で一意のID**を設定（faq1, faq2, faq3...）
+            - inputのidとlabelのforを完全一致させる
+            - 同じidを複数回使用しない（**1ページ内でのID重複は絶対禁止**）
+            - 質問文は必ず`<span>`要素で囲む
+            - 他の要素（見出し等）のIDとも重複しないよう注意
             
             ### 4. 出典・引用の扱い方
             
             本文中で統計データや専門的主張を述べる際は必ず出典を付けてください：
             
             ```html
-            <!-- 本文中 -->
+            <!-- 本文中の脚注リンク -->
             <p>研究結果によると<a class="article-cite" href="#fn-1" id="fnref-1">[1]</a>、〇〇ということが明らかになっています。</p>
             
-            <!-- 記事末尾 -->
+            <!-- 引用ブロック（よくあるスタイル） -->
+            <div class="article-quote">
+              <p>引用したい内容をここに記載します<a class="article-cite" href="#fn-2">[2]</a>。</p>
+              <span class="quote-source">参考: 関連機関の見解</span>
+            </div>
+            
+            <!-- 記事末尾の出典リスト -->
             <div class="article-reliability-info">
               <h3>この記事の信頼性について</h3>
               <ol class="article-citations">
@@ -575,35 +613,91 @@ jobs:
             </div>
             ```
             
+            **引用関連クラスの使い方：**
+            - `article-cite`: 本文中の脚注リンク（例: [1]）
+            - `article-citations`: 末尾の出典リスト（番号付き）
+            - `fn-back`: 出典から本文へ戻るリンク（↩）
+            - `article-quote`: 引用用の強調ブロック
+            - `quote-source`: 引用元の短い注記
+            
             リサーチ結果から5つ以上の出典を引用してください。
             
-            ### 5. strongタグの使用ガイドライン
+            ### 5. strongタグの使用ガイドライン（重要：適切な使用箇所の厳守）
             
-            <strong>使用する場所：</strong>
+            <strong>使用する場所（文章内の重要ポイントのみ）：</strong>
             - 文章内の重要なポイント
             - 注意点、推奨事項
             - 成功のコツ
             - 読者の理解を助ける強調
             
-            <strong>使用しない場所：</strong>
-            - ラベル（「住所：」など）
+            <strong>絶対に使用しない場所：</strong>
+            - ラベル（「住所：」「電話番号：」など）
             - 項目名・見出し
             - 短い単語やラベル
+            - 専門家バッジ内
+            - CTAセクション内の定型文
             
-            ### 6. ハイライトボックスの使用制限
+            ### 6. ハイライトボックスの使用制限（重要：使用数の厳守）
             
-            - <strong>導入部分</strong>: 積極的に使用推奨
-            - <strong>メインセクション内</strong>: 1セクション1個まで、本当に重要な情報のみ
-            - <strong>過度な使用は避ける</strong>: 基本はh3+p構造を使用
+            - <strong>導入部分（リードテキスト周辺）</strong>: キャッチーさを演出するため積極的に使用推奨
+            - <strong>メインセクション内</strong>: **h2見出し単位で1個まで厳守**、本当に重要な情報のみ
+            - <strong>過度な使用は絶対に避ける</strong>: 基本はh3+p構造を使用
+            - <strong>料金・重要情報セクション</strong>: 複雑な情報を整理する場合は使用可
+            - **基本構成：h3見出し + pテキストを基本とし、シンプルな構造を心がける**
+            - **セクション定義：h2タグで区切られた範囲を1セクションとする**
             
-            ### 7. ブログカードの配置（任意）
+            ### 7. ブログカード機能（ショートコードによる自動生成）
+            
+            記事内の任意の場所にブログカードを挿入できます。URLから自動でタイトル、画像、説明文を取得してブログカードを生成：
             
             ```html
             <p>詳しい手順については、こちらの記事も参考にしてください。</p>
+            
+            <!-- 記事内にブログカードを挿入 -->
             [blog_card url="https://example.com/related-article"]
+            
+            <p>上記の方法を試した後で、次のステップに進みます。</p>
             ```
             
-            ### 8. CTAセクション
+            **ショートコードのパラメータ：**
+            - `url`: ブログカードを生成したいページのURL（必須）
+            
+            **使用上の注意：**
+            - WordPressが自動的にURLからメタ情報を取得してカード化
+            - 関連記事への内部リンクや参考資料への外部リンクに活用
+            - 記事の流れを妨げない適切な位置に配置
+            
+            ### 8. 画像の使用例（alt属性必須）
+            
+            ```html
+            <div class="article-content-image">
+              <img src="image.jpg" alt="画像の説明" width="800" height="450" loading="lazy">
+              <figcaption>画像のキャプション説明</figcaption>
+            </div>
+            ```
+            
+            **画像の必須属性：**
+            - `alt`: 画像の代替テキスト（必須・空でも設定）
+            - `width`/`height`: 画像サイズ（レイアウトシフト防止）
+            - `loading="lazy"`: 遅延読み込み（パフォーマンス向上）
+            
+            ### 9. レビューカードの使用例
+            
+            ```html
+            <div class="review-cards-section">
+              <div class="review-card">
+                <div class="review-avatar">
+                  <img src="avatar.jpg" alt="30代/会社員">
+                </div>
+                <div class="review-content">
+                  <h3 class="review-author">30代/会社員</h3>
+                  <p class="review-text">とても満足しています。スタッフの対応も丁寧で、また利用したいと思います。</p>
+                </div>
+              </div>
+            </div>
+            ```
+            
+            ### 10. CTAセクション
             
             ```html
             <section class="article-cta-section">
@@ -625,14 +719,27 @@ jobs:
             
             文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
             
-            ## 品質チェックリスト
+            ## 品質チェックリスト（エラー防止重点項目）
             
+            ### 必須チェック項目：
             - <strong>ARTICLE-TEMPLATE-README.md仕様に完全準拠</strong>
             - Phase 2の構成通りのセクション構成
             - セマンティックなHTML構造
-            - strongタグの適切な使用（文章内の重要ポイントのみ）
-            - ハイライトボックスの制限遵守（1セクション1個まで）
-            - FAQの構造が標準仕様通り（checkbox + label + span）
+            
+            ### HTMLタグの整合性（エラー防止）：
+            - **一意のID設定**: すべてのinputタグに一意のIDを設定（faq1, faq2, faq3...）
+            - **ID対応確認**: labelのfor属性とinputのidを完全一致させる
+            - **タグの開始・終了**: divタグやsectionタグの開始・終了を正確に対応させる
+            - **ID重複禁止**: 同じidを複数回使用しない
+            - **メインコンテナ**: `<div class="article-content">`が1つの記事に1つのみ
+            
+            ### スタイル仕様の遵守：
+            - strongタグの適切な使用（文章内の重要ポイントのみ、ラベルには使用禁止）
+            - ハイライトボックスの制限遵守（**1セクション1個まで厳守**）
+            - FAQの構造が標準仕様通り（checkbox + label + span、ID重複なし）
+            - 基本構成はh3見出し + pテキストのシンプルな構造
+            
+            ### コンテンツ品質：
             - アンカーリンクが正しく機能する目次
             - リサーチ結果から5つ以上の出典を引用
             - 出典リンクの形式が正しい（fn-1, fnref-1等）
@@ -771,12 +878,22 @@ jobs:
             - ペルソナが誤解しやすい表現はないか
             - より分かりやすい説明が必要な箇所はないか
             
-            ### 5. ARTICLE-TEMPLATE-README.md仕様準拠（v3追加）
+            ### 5. ARTICLE-TEMPLATE-README.md仕様準拠（完全チェック）
+            
+            **HTMLタグの整合性チェック：**
+            - すべてのinputタグに一意のIDが設定されているか（faq1, faq2, faq3...）
+            - labelのfor属性とinputのidが完全一致しているか
+            - 同じidが複数回使用されていないか（ID重複エラーチェック）
+            - divタグやsectionタグの開始・終了が正しく対応しているか
+            - `<div class="article-content">`が1つの記事に1つのみか
+            
+            **スタイル仕様チェック：**
             - CSSクラス名が仕様通りか
-            - strongタグの使用が適切か（文章内の重要ポイントのみ）
-            - ハイライトボックスが1セクション1個以内か
-            - FAQの構造が正しいか（checkbox + label + span）
-            - 出典リンクの形式が正しいか（fn-1, fnref-1等）
+            - strongタグの使用が適切か（文章内の重要ポイントのみ、ラベルには不使用）
+            - ハイライトボックスが**1セクション1個以内を厳守**しているか
+            - FAQの構造が正しいか（checkbox + label + span、質問文がspan要素で囲まれているか）
+            - 出典リンクの形式が正しいか（fn-1, fnref-1等の相互リンク）
+            - 基本構成がh3見出し + pテキストのシンプルな構造になっているか
             
             ## 出力形式
             
