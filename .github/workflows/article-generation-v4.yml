@@ -543,6 +543,26 @@ jobs:
             - ステップ: `<ol class="article-steps-list">`
             - FAQ: `<div class="article-faq-section">`
             
+            ### 2.1 画像挿入の要件（重要）
+            
+            各セクションに適切な位置で画像を挿入してください。特に以下の箇所では必須：
+            - ヒーロー画像：記事の冒頭部分（リード文の後）
+            - 各主要セクション（H2見出し）：内容の理解を助ける説明画像
+            
+            画像挿入のHTML形式：
+            ```html
+            <figure class="article-content-image">
+              <img src="[画像生成予定位置]" alt="[画像の詳細な説明]" loading="lazy" decoding="async" width="800" height="600">
+              <figcaption>[画像のキャプション]</figcaption>
+            </figure>
+            ```
+            
+            **画像の配置ルール**：
+            - 最低4-5箇所に画像プレースホルダーを配置
+            - src属性には `[ヒーロー画像]` `[セクション1画像]` `[セクション2画像]` など、どの位置の画像かわかる仮テキストを入れる
+            - alt属性にはその画像で表現すべき内容を詳細に記述
+            - キャプションは画像の補足説明を記載
+            
             ### 3. 出典の扱い方（重要）
             
             本文中で統計データや専門的主張を述べる際は必ず出典を付けてください：
@@ -591,6 +611,12 @@ jobs:
             output/${{ needs.initialize.outputs.article_id }}/final_article.html として、
             `<div class="article-content">` で開始し `</div>` で終了する完全なHTMLコードを保存してください。
             インラインスタイル（`<style>`タグ）は含めないでください。
+            
+            **必須要件**：
+            1. 画像プレースホルダー（`<figure class="article-content-image">`）を最低4-5箇所配置
+            2. ヒーロー画像は記事冒頭に必須
+            3. 各主要セクション（H2）に最低1つの画像を配置
+            4. 画像のalt属性とキャプションは具体的で意味のある内容にする
             
             文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
           
