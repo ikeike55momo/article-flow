@@ -1,180 +1,159 @@
-# SEO記事自動生成システム（ファクトチェック強化版）
+# 🚀 AI記事自動生成システム - Article Flow
 
-## 概要
-このシステムは、Claude CodeまたはGemini CLIに「○○についての記事を作成して」と指示するだけで、ファクトチェック済みの高品質なSEO記事を自動生成します。
+## 📋 概要
 
-## 特徴
-- 🔍 **徹底的なファクトチェック**: すべての数値・統計・主張を検証
-- 📊 **信頼できる情報源**: 公的機関・学術機関の情報を優先
-- ✅ **品質保証**: 品質スコア85点以上、ファクトチェックスコア90点以上
-- 🎯 **SEO/LLMO最適化**: 検索エンジンとAIに最適化
-- 📱 **WordPress対応**: そのまま貼り付け可能なHTML出力
+GitHub Actionsを使用して、高品質なSEO最適化済み記事を自動生成するワークフローシステムです。
+ARTICLE-TEMPLATE-README.mdの仕様に完全準拠したHTML出力を生成します。
 
-## 使用方法
+## ✨ 特徴
 
-### Claude Code
+- 🤖 **Claude API統合** - 高品質な記事生成
+- 🔍 **Gemini APIリサーチ** - 信頼性の高い情報収集
+- ✅ **ファクトチェック機能** - 品質スコア付き検証
+- 📊 **SEO最適化** - メタデータ自動生成
+- 🎨 **画像生成対応** - MCP Imagen4による画像生成
+- 📱 **WordPress対応** - そのまま貼り付け可能なHTML出力
+
+## 🎯 ワークフローバージョン
+
+### 1. article-generation-v4-free.yml（推奨）
+- **特徴**: 無料版・シンプルな構成
+- **用途**: 基本的な記事生成
+- **必要なシークレット**: 
+  - `ANTHROPIC_API_KEY`
+  - `GEMINI_API_KEY`
+
+### 2. article-generation-v4.yml
+- **特徴**: フル機能版（有料機能含む）
+- **用途**: 高度な記事生成・画像生成
+- **追加機能**: Google Drive連携、詳細な品質管理
+
+## 🔧 セットアップ
+
+### 1. リポジトリをフォーク/クローン
 ```bash
-claude-code "爪ケアについての記事を作成して"
+git clone https://github.com/yourusername/article-flow.git
+cd article-flow
 ```
 
-### Gemini CLI
-```bash
-gemini "爪ケアについての記事を作成して"
+### 2. GitHub Secretsの設定
+リポジトリの Settings → Secrets and variables → Actions で以下を設定：
+
+```yaml
+ANTHROPIC_API_KEY: your_claude_api_key
+GEMINI_API_KEY: your_gemini_api_key
 ```
 
-### 詳細指定
-```bash
-claude-code "爪ケアについての記事を作成して store_url=https://example.com/ target=セルフケア志向の女性"
+### 3. GitHub Actionsの有効化
+- リポジトリの Actions タブを開く
+- ワークフローを有効化
+
+## 📝 使い方
+
+### GitHub Actions経由での実行
+
+1. **Actions タブを開く**
+2. **ワークフローを選択**
+   - `Article Generation V4 Free (Simplified Output)`を選択
+3. **Run workflow をクリック**
+4. **パラメータを入力**：
+   - **タイトル案**: 記事のタイトル（30-32字推奨）
+   - **主要KW**: メインキーワード（カンマ区切り、最大3語）
+   - **切り口・ターゲット**: ターゲット層の説明
+   - **E-E-A-T要素**: 専門性・経験・権威性・信頼性の要素
+   - **目標文字数**: デフォルト3200文字
+   - **画像生成**: 有効/無効の選択
+
+### 実行例
+```yaml
+タイトル案: "40代女性のための効果的なスキンケア完全ガイド"
+主要KW: "スキンケア,40代,アンチエイジング"
+切り口・ターゲット: "肌の変化に悩む40代女性"
+E-E-A-T要素: "皮膚科医監修、20年の美容経験"
 ```
 
-### 出力確認
-生成された記事は以下に保存されます：
-```bash
-# 例：2025年1月23日に「爪ケア」の記事を生成した場合
-output/2025-01-23-nail-care-guide/
-├── final.html          # WordPressに貼り付ける最終HTML
-├── 01_research_data.md # リサーチ結果
-├── 03_draft.md        # 初稿
-└── その他の中間ファイル
-```
-
-## システム構成
+## 📁 ディレクトリ構造
 
 ```
-/Users/nu/article/
-├── .claude-code-config.yaml      # Claude Code設定
-├── .gemini-cli-config.yaml       # Gemini CLI設定
-├── INSTRUCTIONS.md               # AI実行指示書
-├── README.md                     # このファイル
-├── config/                       # 設定ファイル
-│   ├── workflow.yaml            # ワークフロー定義
-│   ├── requirements.yaml        # 要件定義
-│   ├── factcheck_rules.yaml     # ファクトチェックルール
-│   └── templates.yaml           # テンプレート
-├── prompts/                      # フェーズ別プロンプト
-│   ├── 00_parse_request.md      # リクエスト解析
-│   ├── 01_research.md           # リサーチ（15-25回検索）
-│   ├── 02_structure.md          # 構成計画
-│   ├── 03_writing.md            # 執筆
-│   ├── 03_5_factcheck.md        # ファクトチェック
-│   ├── 04_optimization.md       # SEO最適化
-│   └── 05_finalization.md       # 最終調整
-├── assets/                       
-│   └── wordpress.css            # WordPress用CSS
-└── output/                      # 出力ディレクトリ
-    └── YYYY-MM-DD-{title}/      # 日付とタイトルのディレクトリ
-        ├── 00_parsed_request.json
-        ├── 01_research_data.md
-        ├── 02_article_structure.md
-        ├── 03_draft.md
-        ├── 03_5_factchecked_draft.md
-        ├── 03_5_factcheck_report.json
-        ├── 04_optimized_draft.html
-        ├── 04_5_image_metadata.json
-        ├── 05_quality_report.json
-        ├── final.html          # 最終成果物
-        └── images/             # 生成画像
+article-flow/
+├── .github/
+│   └── workflows/          # GitHub Actionsワークフロー
+│       ├── article-generation-v4-free.yml
+│       └── article-generation-v4.yml
+├── Prompt_v2/             # バージョン2用プロンプト
+│   ├── CHAT_01_phase1_analysis.md
+│   ├── CHAT_02_structure_generation.md
+│   └── ...
+├── Prompt_v3/             # バージョン3用プロンプト（最新）
+│   ├── ARTICLE-TEMPLATE-README.md  # HTML仕様書
+│   └── ...
+├── github-actions/        # ワークフロー用スクリプト
+│   └── scripts/
+│       ├── create_batch_analysis.py
+│       ├── merge_research_results.py
+│       └── ...
+└── output/               # 生成された記事の出力先
+
 ```
 
-## ワークフロー
+## 📊 出力形式
 
-1. **リクエスト解析**: ユーザー入力から記事パラメータを抽出
-2. **リサーチ**: 15-25回のweb検索で信頼できる情報収集
-3. **構成計画**: エビデンスベースの記事構成
-4. **執筆**: 完全オリジナルの文章作成
-5. **ファクトチェック**: すべての事実を検証・修正
-6. **SEO最適化**: HTML変換とSEO/LLMO対応
-7. **最終調整**: 品質チェックと最終確認
+### 生成される成果物
 
-## ファクトチェック機能
+1. **final_article.html** - WordPress貼り付け用HTML
+2. **research_results.json** - リサーチ結果（信頼性スコア付き）
+3. **factcheck_report.json** - ファクトチェックレポート
+4. **seo_metadata.json** - SEOメタ情報
+5. **images/** - 生成された画像
 
-### 検証対象
-- 数値・統計データ
-- 医学的・科学的主張
-- 効果・効能の記述
-- 比較・評価表現
+### HTML仕様準拠
 
-### 信頼性評価
-- **very_high**: 政府機関（.go.jp, .gov）
-- **high**: 学術機関（.ac.jp, .edu）、医学会
-- **medium_high**: 業界団体、大手メディア
-- **medium**: 一般的なWebサイト
-- **low**: 出典不明、個人ブログ
+ARTICLE-TEMPLATE-README.mdの仕様に完全準拠：
+- 全CSSクラス対応
+- エラー防止チェック実装
+- ハイライトボックス制限（1セクション1個）
+- strongタグ使用ガイドライン準拠
 
-### 禁止表現
-- 絶対的表現：「必ず」「100%」「絶対に」
-- 曖昧表現：「〜らしい」「〜かもしれない」
-- 誇大表現：「最高の」「日本一の」「唯一の」
+## 🛠️ トラブルシューティング
 
-## 出力品質基準
+### よくある問題
 
-### 必須要件
-- 文字数: 3200±300字
-- 品質スコア: 85点以上
-- ファクトチェックスコア: 90点以上
-- オリジナリティ: 100%
+1. **API Key エラー**
+   - GitHub Secretsが正しく設定されているか確認
+   - APIキーの有効性を確認
 
-### SEO要件
-- メインキーワード密度: 2.5-3.5%
-- H2見出し: 6個
-- FAQ: 7問
-- メタディスクリプション: 140-160字
+2. **ワークフロー失敗**
+   - Actionsログを確認
+   - 必要なファイルが存在するか確認
 
-## カスタマイズ
+3. **出力が期待通りでない**
+   - Prompt_v3/のプロンプトファイルを確認
+   - パラメータが適切か確認
 
-### 店舗情報の設定
-`store_url`パラメータで店舗URLを指定すると、適切な一人称や専門性表現が自動調整されます。
+## 📚 関連ドキュメント
 
-### ターゲット読者の指定
-`target`パラメータで想定読者を指定できます。
+- [WORKFLOW_USER_GUIDE.md](./WORKFLOW_USER_GUIDE.md) - 詳細な使用ガイド
+- [CLAUDE.md](./CLAUDE.md) - Claude設定と開発ルール
+- [GEMINI.md](./GEMINI.md) - Gemini設定ガイド
+- [Prompt_v3/ARTICLE-TEMPLATE-README.md](./Prompt_v3/ARTICLE-TEMPLATE-README.md) - HTML仕様書
 
-### 文字数の調整
-`word_count`パラメータで目標文字数を変更可能です。
+## 🤝 コントリビューション
 
-## トラブルシューティング
+プルリクエスト歓迎です！
+1. このリポジトリをフォーク
+2. 機能ブランチを作成 (`git checkout -b feature/AmazingFeature`)
+3. 変更をコミット (`git commit -m 'Add some AmazingFeature'`)
+4. ブランチにプッシュ (`git push origin feature/AmazingFeature`)
+5. プルリクエストを作成
 
-### ファクトチェックで低スコアの場合
-- より信頼できる情報源を追加検索
-- 曖昧な表現を具体的に修正
-- 古い情報を最新のものに更新
+## 📝 ライセンス
 
-### 品質スコアが低い場合
-- 各セクションの文字数バランスを調整
-- キーワード密度を最適化
-- 論理的な流れを改善
+MIT License - 詳細は[LICENSE](./LICENSE)を参照
 
-### WordPressでCSSが適用されない場合
-1. **即座の対応**
-   - `wordpress-fixed.css`を使用（!important付き）
-   - 記事のdivに`id="nail-care-article"`を追加
+## 💬 サポート
 
-2. **詳細な対処**
-   - Chrome DevToolsで競合するCSSを特定
-   - テーマのセレクタより高い詳細度に調整
-   - `config/wordpress-compatibility.yaml`の設定を確認
+問題が発生した場合は、[Issues](https://github.com/yourusername/article-flow/issues)で報告してください。
 
-3. **代替案**
-   - ステップリストで`::before`が効かない場合は`<span class="step-number">`を使用
-   - カスタムCSSをWordPressの追加CSSに直接記述
-   - 子テーマでの管理を検討
+---
 
-## 注意事項
-
-1. **医療・健康情報**: 薬機法に配慮し、断定的表現は避けています
-2. **個人差の明記**: 効果には個人差があることを適切に表現
-3. **最新情報の使用**: 3年以内の情報を優先的に使用
-4. **法的コンプライアンス**: 景表法、薬機法に準拠
-
-## ライセンス
-
-このシステムは店舗の公式ブログ用に開発されています。
-生成された記事の著作権は使用者に帰属します。
-
-## 更新履歴
-
-- v2.2 (2025): WordPress CSS適用問題を完全解決
-  - CSSを完全インライン化
-  - 単一HTMLブロック出力を徹底
-  - 外部ファイル参照を廃止
-- v2.1 (2024): ファクトチェック機能追加
-- v2.0 (2024): 初回リリース
+🤖 Generated with [Claude Code](https://claude.ai/code)
