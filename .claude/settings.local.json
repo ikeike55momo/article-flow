@@ -45,7 +45,10 @@
       "Bash(cat:*)",
       "mcp__gpt5__gpt5_query",
       "mcp__serena__search_for_pattern",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__gpt5-mcp__gpt5_query",
+      "Bash(git config:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

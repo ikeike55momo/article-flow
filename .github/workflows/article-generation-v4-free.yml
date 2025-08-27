@@ -479,7 +479,7 @@ jobs:
               "model": "claude-3-5-sonnet-20241022",
               "temperature": 0,
               "max_tokens": 8000,
-              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"article-content\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n\n### ショートコード → HTML変換\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n[video url=\"URL\"] → <figure class=\"video-embed\"><iframe src=\"URL\" frameborder=\"0\" allowfullscreen loading=\"lazy\"></iframe><figcaption>動画コンテンツ</figcaption></figure>\n\n### Markdown記法 → HTML変換\n# 見出し → <h1>見出し</h1>\n## 見出し → <h2>見出し</h2>\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n![画像](URL) → <img src=\"URL\" alt=\"画像\" loading=\"lazy\">\n``` コード ``` → <pre><code>コード</code></pre>\n- リスト → <ul><li>リスト</li></ul>\n1. リスト → <ol><li>リスト</li></ol>\n\n## 🔍 出力前自己検証（必須）\n出力直前に以下をチェックし、見つかった場合は100%HTMLに変換：\n「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」「[blog_card」「[link_card」「[video」「[embed」\n\n## 📋 許可タグ\nhtml, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span, iframe\n\n**必須構造**: <div class=\"article-content\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
             }
           prompt: |
             記事タイトル: ${{ inputs.article_title }}
@@ -819,60 +819,55 @@ jobs:
             fi
           fi
 
-      - name: Validate HTML output
+      - name: Advanced HTML Validation & Auto-Fix
         run: |
-          echo "🔍 HTML出力のバリデーション開始"
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          HTML_FILE="${ARTICLE_DIR}/final_article.html"
           
-          # final_article.htmlファイルの存在確認
-          if [ ! -f "output/${{ needs.initialize.outputs.article_id }}/final_article.html" ]; then
-            echo "❌ final_article.htmlが見つかりません"
-            exit 1
-          fi
+          echo "🔍 Starting comprehensive HTML validation..."
           
-          # Markdown記法の検出
-          MARKDOWN_PATTERNS=(
-            "^#{1,6} "
-            "^\* "
-            "^- "
-            "^[0-9]+\. "
-            "\[.*\]\(.*\)"
-            "!\[.*\]\(.*\)"
-            "\*\*.*\*\*"
-            "\*.*\*"
-            "```"
-          )
-          
-          HTML_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.html"
-          FOUND_MARKDOWN=false
-          
-          echo "📝 Markdown記法検出チェック:"
-          for pattern in "${MARKDOWN_PATTERNS[@]}"; do
-            if grep -qE "$pattern" "$HTML_FILE"; then
-              echo "⚠️  検出: $pattern"
-              grep -nE "$pattern" "$HTML_FILE" | head -3
-              FOUND_MARKDOWN=true
-            fi
-          done
-          
-          if [ "$FOUND_MARKDOWN" = true ]; then
-            echo "❌ Markdown記法が検出されました。HTML専用出力に修正が必要です。"
-            exit 1
+          # Step 1: 高度バリデーション実行
+          if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
+            echo "✅ HTML validation passed on first try!"
           else
-            echo "✅ Markdown記法は検出されませんでした"
+            echo "⚠️  HTML validation failed. Starting auto-fix process..."
+            
+            # Step 2: ショートコード自動変換
+            echo "🔄 Converting shortcodes to HTML..."
+            python3 github-actions/scripts/convert_shortcodes_to_html.py "${HTML_FILE}"
+            
+            # Step 3: 再度バリデーション
+            if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
+              echo "✅ HTML validation passed after shortcode conversion!"
+            else
+              echo "🤖 Running Claude API auto-fix..."
+              
+              # Step 4: Claude API自動修正
+              if python3 github-actions/scripts/auto_fix_html_output.py "${HTML_FILE}"; then
+                echo "🔧 Auto-fix completed. Final validation..."
+                
+                # Step 5: 最終バリデーション
+                if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
+                  echo "✅ HTML validation passed after auto-fix!"
+                else
+                  echo "❌ HTML validation failed even after auto-fix"
+                  echo "Manual intervention required"
+                  exit 1
+                fi
+              else
+                echo "❌ Auto-fix failed"
+                exit 1
+              fi
+            fi
           fi
           
-          # HTMLタグの基本構造確認
-          if ! grep -q '<div class="article-content">' "$HTML_FILE"; then
-            echo "❌ <div class=\"article-content\">が見つかりません"
-            exit 1
-          fi
-          
-          if ! grep -q '</div>' "$HTML_FILE"; then
-            echo "❌ 終了</div>タグが見つかりません"  
-            exit 1
-          fi
-          
-          echo "✅ HTML出力バリデーション完了"
+          # Step 6: 最終検証統計
+          echo ""
+          echo "📊 Final HTML Quality Report:"
+          ls -lh "${HTML_FILE}"
+          echo "File size: $(wc -c < "${HTML_FILE}") bytes"
+          echo "Line count: $(wc -l < "${HTML_FILE}") lines"
+          echo "✅ HTML output is ready for upload"
 
       - name: Upload content artifacts
         uses: actions/upload-artifact@v4
@@ -934,7 +929,7 @@ jobs:
               "model": "claude-3-5-sonnet-20241022",
               "temperature": 0,
               "max_tokens": 8000,
-              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"factcheck-report\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+              "system": "あなたは「HTML専用ファクトチェッカー」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"factcheck-report\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
             }
           prompt: |
             # 記事ファクトチェック・品質スコア算出
@@ -1118,7 +1113,7 @@ jobs:
               "model": "claude-3-5-sonnet-20241022",
               "temperature": 0,
               "max_tokens": 8000,
-              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"seo-metadata\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+              "system": "あなたは「HTML専用SEO専門家」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"seo-metadata\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
             }
           prompt: |
             # SEOメタ情報生成
@@ -1395,7 +1390,7 @@ jobs:
               "model": "claude-3-5-sonnet-20241022",
               "temperature": 0,
               "max_tokens": 8000,
-              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"final-package\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+              "system": "あなたは「HTML専用パッケージ管理専門家」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"final-package\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
             }
           prompt: |
             # 最終まとめ・成果物整理
