@@ -207,14 +207,6 @@ jobs:
             3. analysis.research_queries が15個以上含まれる
             4. ファイルサイズが1KB以上ある
           
-          allowed_tools: |
-            Read,
-            Write
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-          
-          max_turns: "5"
       
       - name: Verify and prepare analysis results
         run: |
@@ -452,15 +444,6 @@ jobs:
             - <strong>信頼性</strong>: リサーチ結果に基づいた正確な情報
             - <strong>法規制対応</strong>: 薬機法・景表法に配慮した表現計画
           
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-          
-          max_turns: "10"
 
       - name: Upload structure artifacts
         uses: actions/upload-artifact@v4
@@ -787,19 +770,6 @@ jobs:
             - ペルソナに最適化された表現
             - 薬機法・景表法に配慮した表現
           
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            TITLE=${{ inputs.article_title }}
-            APPROACH_TARGET=${{ inputs.approach_target }}
-            MAIN_KEYWORDS=${{ inputs.main_keywords }}
-            WORD_COUNT=${{ inputs.word_count }}
-          
-          max_turns: "15"
 
       - name: Verify article generation with fallback
         id: verify-article
@@ -990,16 +960,6 @@ jobs:
             - **ペルソナ視点**: 読者（ペルソナ）の理解しやすさを重視
             - **法規制の理解**: 健康・美容分野の表現規制を正しく適用
           
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            WORKSPACE=${{ github.workspace }}
-          
-          max_turns: "10"
 
       - name: Debug - Check Claude execution
         run: |
@@ -1174,16 +1134,6 @@ jobs:
             4. **E-E-A-T**: 専門性・権威性・信頼性を意識
             5. **ペルソナ最適化**: ターゲット層に響く表現を選択
           
-          allowed_tools: |
-            Read,
-            Write
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-            WORD_COUNT=${{ inputs.word_count }}
-            WORKSPACE=${{ github.workspace }}
-          
-          max_turns: "30"
 
       - name: Debug - Check Claude execution for SEO
         run: |
@@ -1284,33 +1234,6 @@ jobs:
                
             重要: 必ず5回のmcp__gemini-imagen__generate_imageを実行して、複数枚の画像を生成してください。
           
-          mcp_config: |
-            {
-              "mcpServers": {
-                "gemini-imagen": {
-                  "command": "npx",
-                  "args": [
-                    "-y", 
-                    "gemini-imagen-mcp-server",
-                    "--model", "imagen-4"
-                  ],
-                  "env": {
-                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
-                  }
-                }
-              }
-            }
-          
-          allowed_tools: |
-            Read,
-            Write,
-            mcp__gemini-imagen__generate_image,
-            mcp__gemini-imagen__list_models
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-          
-          max_turns: "30"
 
       - name: Process generated images
         run: |
@@ -1563,15 +1486,6 @@ jobs:
             - プレースホルダー（[実際の〜]）は実際の値に置き換える
             - 不要なファイルは削除しない（制作側で選択）
           
-          allowed_tools: |
-            Read,
-            Write,
-            Edit
-          
-          claude_env: |
-            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
-          
-          max_turns: "10"
 
       # Google Drive upload removed - using GitHub Artifacts only
 
