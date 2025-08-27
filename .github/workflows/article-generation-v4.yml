@@ -133,74 +133,78 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            # 記事リクエスト分析
+            # 目的: 記事生成のための分析結果をphase1_output.jsonファイルに必ず作成する
             
-            記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
+            このタスクはphase1_output.jsonファイルの作成で完了とします。分析だけして終わるのは禁止です。
             
-            ## 入力情報
-            - **タイトル案**: ${{ inputs.article_title }}
-            - **主要KW**: ${{ inputs.main_keywords }}
-            - **切り口・ターゲット**: ${{ inputs.approach_target }}
-            - **E-E-A-T要素**: ${{ inputs.eeat_elements }}
-            - **目標文字数**: ${{ inputs.word_count }}
+            ## 納品物（必須）
+            - **ファイルパス**: output/${{ needs.initialize.outputs.article_id }}/phase1_output.json
+            - **形式**: UTF-8エンコードの厳密なJSON（コメント・末尾カンマ無し）
+            - **絶対条件**: このファイルが存在しないと後続ジョブが全て失敗します
             
-            ## タスク
-            まず、output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解した後、以下の分析を実行してください：
+            ## 手順（この順序で実行してください）
+            1. まず output/${{ needs.initialize.outputs.article_id }}/phase1_output.json を空のJSONで作成
+            2. output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込む
+            3. 以下の分析を実行
+            4. 分析結果でphase1_output.jsonを上書き保存
+            5. ファイルを読み直してJSONが正しいことを検証
+            6. ファイルサイズと最初の100文字を出力して作成を確認
             
-            1. **メインキーワードの特定**
-               - タイトル案と主要KWから最も重要なキーワードを1つ選定
+            ## 分析タスク
+            ### 入力情報
+            - タイトル案: ${{ inputs.article_title }}
+            - 主要KW: ${{ inputs.main_keywords }}
+            - 切り口・ターゲット: ${{ inputs.approach_target }}
+            - E-E-A-T要素: ${{ inputs.eeat_elements }}
+            - 目標文字数: ${{ inputs.word_count }}
             
-            2. **関連キーワードの抽出**
-               - メインキーワードに関連する重要キーワード5-8個を抽出
+            ### 分析内容
+            1. メインキーワードの特定（タイトルから最重要語を1つ）
+            2. 関連キーワードの抽出（5-8個）
+            3. 検索意図の分析（informational/navigational/transactional/commercial）
+            4. コンテンツタイプの決定（how-to/guide/comparison/review/tips）
+            5. トーンの設定（friendly/professional/casual/authoritative）
+            6. キーポイントの抽出（3-5個）
+            7. リサーチクエリの生成（必ず15個以上、理想は20個）
             
-            3. **検索意図の分析**
-               - informational（情報収集）、navigational（特定サイト検索）、transactional（購入意図）、commercial（比較検討）のいずれかを判定
-            
-            4. **コンテンツタイプの決定**
-               - how-to（方法・手順）、guide（総合ガイド）、comparison（比較）、review（レビュー）、tips（コツ・アドバイス）のいずれかを選択
-            
-            5. **トーンの設定**
-               - friendly（親しみやすい）、professional（専門的）、casual（カジュアル）、authoritative（権威的）のいずれかを選択
-            
-            6. **キーポイントの抽出**
-               - 切り口・ターゲットが知りたい重要なポイント3-5個
-               - E-E-A-T要素を踏まえた信頼性の高い情報提供
-            
-            7. **リサーチクエリの生成**
-               - 記事作成のために調べるべき検索クエリ15-25個を生成
-            
-            ## 出力形式
-            分析結果を output/${{ needs.initialize.outputs.article_id }}/phase1_output.json ファイルに以下のJSON形式で保存してください：
-            
-            ```json
+            ## 必須JSONスキーマ
             {
               "analysis": {
-                "main_keyword": "抽出したメインキーワード",
-                "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
-                "search_intent": "informational",
-                "content_type": "how-to", 
-                "tone": "friendly",
-                "key_points": ["ポイント1", "ポイント2", "ポイント3"],
-                "research_queries": [
-                  "クエリ1", "クエリ2", "クエリ3", "クエリ4", "クエリ5",
-                  "クエリ6", "クエリ7", "クエリ8", "クエリ9", "クエリ10",
-                  "クエリ11", "クエリ12", "クエリ13", "クエリ14", "クエリ15"
-                ],
+                "main_keyword": "string（必須）",
+                "related_keywords": ["array（5個以上必須）"],
+                "search_intent": "informational（必須）",
+                "content_type": "how-to（必須）",
+                "tone": "friendly（必須）",
+                "key_points": ["array（3個以上必須）"],
+                "research_queries": ["array（15個以上必須）"],
                 "competitor_analysis_needed": true,
                 "local_seo_focus": false,
                 "estimated_sections": 5
               },
-              "input_info": {
-                "title": "${{ inputs.article_title }}",
-                "main_keywords": "${{ inputs.main_keywords }}",
-                "approach_target": "${{ inputs.approach_target }}",
-                "eeat_elements": "${{ inputs.eeat_elements }}",
-                "word_count": "${{ inputs.word_count }}"
-              },
-              "processed_at": "現在時刻",
-              "workflow_version": "4.0.0"
+              "topic": "${{ inputs.article_title }}",
+              "target_audience": "${{ inputs.approach_target }}",
+              "keywords": "${{ inputs.main_keywords }}",
+              "processed_at": "ISO8601形式の現在時刻",
+              "workflow_version": "3.0.0"
             }
-            ```
+            
+            ## 制約事項
+            - チャットにJSONを出力しない（ファイルに直接書き込む）
+            - 分析が不完全でも必ずファイルを作成（最低限の構造で）
+            - research_queriesは最低15個必須（後続処理のため）
+            - 他のファイルは作成・変更しない
+            
+            ## 失敗時の処理
+            何らかの理由で分析が失敗した場合でも、以下の最小構造でファイルを作成：
+            - main_keyword: タイトルの最初の単語
+            - research_queries: タイトルを元に機械的に15個生成
+            - その他: デフォルト値を設定
+            
+            ## 完了条件（必須確認項目）
+            1. output/${{ needs.initialize.outputs.article_id }}/phase1_output.json が存在する
+            2. JSONとして有効である（パース可能）
+            3. analysis.research_queries が15個以上含まれる
+            4. ファイルサイズが1KB以上ある
             
             ## 注意点
             - 切り口・ターゲットの特性を考慮してキーワードを選定
