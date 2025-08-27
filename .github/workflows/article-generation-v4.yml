@@ -482,60 +482,30 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 8000,
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"article-content\">から始まり</div>で終わること。"
+            }
           prompt: |
-            # 記事本文生成（HTML形式）
+            記事タイトル: ${{ inputs.article_title }}
+            ターゲット: ${{ inputs.approach_target }}
+            主要KW: ${{ inputs.main_keywords }}
+            E-E-A-T要素: ${{ inputs.eeat_elements }}
+            目標文字数: ${{ inputs.word_count }}
             
-            プロフェッショナルなコンテンツライターとして、Phase 2の構成に従って高品質な記事を生成してください。
-            CSSクラス名は提供された「スタイル仕様書」から必要に応じて使用します。
+            以下のファイルを読み込んで記事を生成：
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json
+            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md
+            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json
             
-            ## 入力情報
+            Phase 2構成を忠実に実装し、<div class="article-content">で囲んで出力。
+            画像は<figure class="article-content-image"><img src="[画像説明]" alt="詳細説明" loading="lazy"></figure>で配置。
             
-            ### 基本情報
-            - **記事タイトル**: ${{ inputs.article_title }}
-            - **切り口・ターゲット**: ${{ inputs.approach_target }}
-            - **主要KW**: ${{ inputs.main_keywords }}
-            - **E-E-A-T要素**: ${{ inputs.eeat_elements }}
-            - **目標文字数**: ${{ inputs.word_count }}
-            
-            ## タスク
-            
-            まず、以下のファイルを読み込んで内容を理解してください：
-            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json: Phase 1の分析結果
-            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md: Phase 2の記事構成
-            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md: Phase 2のコンテンツ計画
-            - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果（出典URL含む）
-            
-            ## 記事生成ルール
-            
-            ### 1. 基本方針
-            - **Phase 2の構成を忠実に実装**してください
-            - WordPressのHTMLブロックに貼り付けることを前提
-            - セマンティックで読みやすいHTMLを生成
-            - **重要：Markdown記法は一切使用せず、すべて純粋なHTMLタグで記述すること**
-            
-            ### 1.1 HTML記法の厳守（超重要）
-            
-            **絶対に使用禁止（Markdown記法）→ 必ず使用すべきHTMLタグ：**
-            - `###` 見出し → `<h3>見出し</h3>` を使用
-            - `##` 見出し → `<h2>見出し</h2>` を使用  
-            - `**太字**` → `<strong>太字</strong>` を使用
-            - `*斜体*` → `<em>斜体</em>` を使用
-            - `1. リスト項目` → `<ol><li>リスト項目</li></ol>` を使用
-            - `- リスト項目` → `<ul><li>リスト項目</li></ul>` を使用
-            - `` `コード` `` → `<code>コード</code>` を使用
-            
-            **すべての文章、見出し、リストは必ずHTMLタグで記述してください。**
-            Markdown記法が1箇所でも含まれていた場合は生成失敗とみなします。
-            
-            ### 2. HTML構造の要件
-            
-            基本構造（必須）：
-            ```html
-            <div class="article-content">
-              <!-- 記事全体をこのコンテナで囲む -->
-              <!-- 以下、Phase 2の構成に従って記事を展開 -->
-            </div>
-            ```
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html として保存してください。
             
             必要に応じて以下のクラスを使用：
             - リード文: `<p class="article-lead-text">`
@@ -650,6 +620,50 @@ jobs:
             fi
           fi
 
+      - name: Validate HTML output (Markdown check)
+        run: |
+          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
+          HTML_FILE="${ARTICLE_DIR}/final_article.html"
+          
+          if [ -f "${HTML_FILE}" ]; then
+            echo "✅ HTML file exists: ${HTML_FILE}"
+            
+            # Check for Markdown syntax
+            MARKDOWN_PATTERNS=(
+              '^\s{0,3}#{1,6}\s'     # Headers: # ## ###
+              '^\s{0,3}[-*+]\s'      # Bullet lists: - * +
+              '^\s{0,3}\d+\.\s'      # Numbered lists: 1. 2.
+              '```'                  # Code fences
+              '\[[^\]]+\]\([^)]+\)'  # Links: [text](url)
+              '!\[[^\]]*\]\([^)]+\)' # Images: ![alt](url)
+              '\*\*[^*]+\*\*'        # Bold: **text**
+              '\*[^*]+\*'            # Italic: *text*
+            )
+            
+            FOUND_MARKDOWN=false
+            for pattern in "${MARKDOWN_PATTERNS[@]}"; do
+              if grep -Eq "${pattern}" "${HTML_FILE}"; then
+                echo "❌ Markdown syntax detected: ${pattern}"
+                echo "Sample matches:"
+                grep -En "${pattern}" "${HTML_FILE}" | head -3
+                FOUND_MARKDOWN=true
+              fi
+            done
+            
+            if [ "${FOUND_MARKDOWN}" = "true" ]; then
+              echo "❌ HTML validation failed: Markdown syntax found"
+              echo "File content preview (first 20 lines):"
+              head -20 "${HTML_FILE}"
+              exit 1
+            else
+              echo "✅ HTML validation passed: No Markdown syntax detected"
+              echo "File size: $(wc -c < "${HTML_FILE}") bytes"
+            fi
+          else
+            echo "❌ HTML file not found: ${HTML_FILE}"
+            exit 1
+          fi
+
       - name: Upload content artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -705,11 +719,15 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 4000,
+              "system": "あなたはファクトチェッカーです。HTMLファイルを読み取り、修正が必要な場合は純粋なHTMLで修正してください。Markdown記法は絶対に使用禁止。修正時は必ずHTMLタグのみ使用。"
+            }
           prompt: |
-            # 記事ファクトチェック・品質スコア算出
-            
-            記事のファクトチェックを行い、品質スコアを算出してください。
+            記事のファクトチェックと品質スコア算出を実行。
             
             ## タスク
             

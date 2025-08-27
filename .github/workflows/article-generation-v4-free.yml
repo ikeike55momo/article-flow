@@ -474,11 +474,31 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 8000,
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"article-content\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+            }
           prompt: |
-            # 記事本文生成（HTML形式）
+            記事タイトル: ${{ inputs.article_title }}
+            ターゲット: ${{ inputs.approach_target }}
+            主要KW: ${{ inputs.main_keywords }}
+            目標文字数: ${{ inputs.word_count }}
             
-            プロフェッショナルなコンテンツライターとして、Phase 2の構成に従って高品質な記事を生成してください。
-            **ARTICLE-TEMPLATE-README.mdのCSSクラス仕様を完全に遵守してください。**
+            以下のファイルを読み込んで記事を生成：
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json
+            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md
+            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json
+            
+            Phase 2構成を忠実に実装し、<div class="article-content">で囲んで出力。
+            **ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。**
+            画像は<figure class="article-content-image"><img src="[画像説明]" alt="詳細説明" loading="lazy"></figure>で配置。
+            
+            output/${{ needs.initialize.outputs.article_id }}/final_article.html として保存。
+            文字数: ${{ inputs.word_count }}±300文字
             
             ## 入力情報
             
@@ -799,6 +819,61 @@ jobs:
             fi
           fi
 
+      - name: Validate HTML output
+        run: |
+          echo "🔍 HTML出力のバリデーション開始"
+          
+          # final_article.htmlファイルの存在確認
+          if [ ! -f "output/${{ needs.initialize.outputs.article_id }}/final_article.html" ]; then
+            echo "❌ final_article.htmlが見つかりません"
+            exit 1
+          fi
+          
+          # Markdown記法の検出
+          MARKDOWN_PATTERNS=(
+            "^#{1,6} "
+            "^\* "
+            "^- "
+            "^[0-9]+\. "
+            "\[.*\]\(.*\)"
+            "!\[.*\]\(.*\)"
+            "\*\*.*\*\*"
+            "\*.*\*"
+            "```"
+          )
+          
+          HTML_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.html"
+          FOUND_MARKDOWN=false
+          
+          echo "📝 Markdown記法検出チェック:"
+          for pattern in "${MARKDOWN_PATTERNS[@]}"; do
+            if grep -qE "$pattern" "$HTML_FILE"; then
+              echo "⚠️  検出: $pattern"
+              grep -nE "$pattern" "$HTML_FILE" | head -3
+              FOUND_MARKDOWN=true
+            fi
+          done
+          
+          if [ "$FOUND_MARKDOWN" = true ]; then
+            echo "❌ Markdown記法が検出されました。HTML専用出力に修正が必要です。"
+            exit 1
+          else
+            echo "✅ Markdown記法は検出されませんでした"
+          fi
+          
+          # HTMLタグの基本構造確認
+          if ! grep -q '<div class="article-content">' "$HTML_FILE"; then
+            echo "❌ <div class=\"article-content\">が見つかりません"
+            exit 1
+          fi
+          
+          if ! grep -q '</div>' "$HTML_FILE"; then
+            echo "❌ 終了</div>タグが見つかりません"  
+            exit 1
+          fi
+          
+          echo "✅ HTML出力バリデーション完了"
+
       - name: Upload content artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -854,7 +929,13 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 8000,
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"factcheck-report\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+            }
           prompt: |
             # 記事ファクトチェック・品質スコア算出
             
@@ -1032,7 +1113,13 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 8000,
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"seo-metadata\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+            }
           prompt: |
             # SEOメタ情報生成
             
@@ -1303,7 +1390,13 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
+          settings: |
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "temperature": 0,
+              "max_tokens": 8000,
+              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止。全ての見出し・段落・箇条書き・番号付きリスト・リンク・画像・強調・引用・表・コードは対応するHTMLタグで表現すること。コードは<pre><code>でHTMLエスケープ。出力直前に「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」が1つでも残っていないか自己検証し、見つかった場合は100%HTMLに変換してから出力すること。許可タグ: html, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span。出力形式は必ず<div class=\"final-package\">から始まり</div>で終わること。ARTICLE-TEMPLATE-README.mdのCSSクラス仕様完全準拠。"
+            }
           prompt: |
             # 最終まとめ・成果物整理
             
