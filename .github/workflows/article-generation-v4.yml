@@ -133,84 +133,89 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
           prompt: |
-            # 目的: 記事生成のための分析結果をphase1_output.jsonファイルに必ず作成する
+            # 記事リクエスト分析
             
-            このタスクはphase1_output.jsonファイルの作成で完了とします。分析だけして終わるのは禁止です。
+            記事リクエストを分析して、記事生成のための詳細パラメータを抽出してください。
             
-            ## 納品物（必須）
-            - **ファイルパス**: output/${{ needs.initialize.outputs.article_id }}/phase1_output.json
-            - **形式**: UTF-8エンコードの厳密なJSON（コメント・末尾カンマ無し）
-            - **絶対条件**: このファイルが存在しないと後続ジョブが全て失敗します
+            ## 入力情報
+            - **タイトル案**: ${{ inputs.article_title }}
+            - **主要KW**: ${{ inputs.main_keywords }}
+            - **切り口・ターゲット**: ${{ inputs.approach_target }}
+            - **E-E-A-T要素**: ${{ inputs.eeat_elements }}
+            - **目標文字数**: ${{ inputs.word_count }}
             
-            ## 手順（この順序で実行してください）
-            1. まず output/${{ needs.initialize.outputs.article_id }}/phase1_output.json を空のJSONで作成
-            2. output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込む
-            3. 以下の分析を実行
-            4. 分析結果でphase1_output.jsonを上書き保存
-            5. ファイルを読み直してJSONが正しいことを検証
-            6. ファイルサイズと最初の100文字を出力して作成を確認
+            ## タスク
+            まず、output/${{ needs.initialize.outputs.article_id }}/request_params.json を読み込んで理解した後、以下の分析を実行してください：
             
-            ## 分析タスク
-            ### 入力情報
-            - タイトル案: ${{ inputs.article_title }}
-            - 主要KW: ${{ inputs.main_keywords }}
-            - 切り口・ターゲット: ${{ inputs.approach_target }}
-            - E-E-A-T要素: ${{ inputs.eeat_elements }}
-            - 目標文字数: ${{ inputs.word_count }}
+            1. **メインキーワードの特定**
+               - タイトル案と主要KWから最も重要なキーワードを1つ選定
             
-            ### 分析内容
-            1. メインキーワードの特定（タイトルから最重要語を1つ）
-            2. 関連キーワードの抽出（5-8個）
-            3. 検索意図の分析（informational/navigational/transactional/commercial）
-            4. コンテンツタイプの決定（how-to/guide/comparison/review/tips）
-            5. トーンの設定（friendly/professional/casual/authoritative）
-            6. キーポイントの抽出（3-5個）
-            7. リサーチクエリの生成（必ず15個以上、理想は20個）
+            2. **関連キーワードの抽出**
+               - メインキーワードに関連する重要キーワード5-8個を抽出
             
-            ## 必須JSONスキーマ
+            3. **検索意図の分析**
+               - informational（情報収集）、navigational（特定サイト検索）、transactional（購入意図）、commercial（比較検討）のいずれかを判定
+            
+            4. **コンテンツタイプの決定**
+               - how-to（方法・手順）、guide（総合ガイド）、comparison（比較）、review（レビュー）、tips（コツ・アドバイス）のいずれかを選択
+            
+            5. **トーンの設定**
+               - friendly（親しみやすい）、professional（専門的）、casual（カジュアル）、authoritative（権威的）のいずれかを選択
+            
+            6. **キーポイントの抽出**
+               - 切り口・ターゲットが知りたい重要なポイント3-5個
+               - E-E-A-T要素を踏まえた信頼性の高い情報提供
+            
+            7. **リサーチクエリの生成**
+               - 記事作成のために調べるべき検索クエリ15-25個を生成
+            
+            ## 出力形式
+            分析結果を output/${{ needs.initialize.outputs.article_id }}/phase1_output.json ファイルに以下のJSON形式で保存してください：
+            
+            ```json
             {
               "analysis": {
-                "main_keyword": "string（必須）",
-                "related_keywords": ["array（5個以上必須）"],
-                "search_intent": "informational（必須）",
-                "content_type": "how-to（必須）",
-                "tone": "friendly（必須）",
-                "key_points": ["array（3個以上必須）"],
-                "research_queries": ["array（15個以上必須）"],
+                "main_keyword": "抽出したメインキーワード",
+                "related_keywords": ["関連1", "関連2", "関連3", "関連4", "関連5"],
+                "search_intent": "informational",
+                "content_type": "how-to", 
+                "tone": "friendly",
+                "key_points": ["ポイント1", "ポイント2", "ポイント3"],
+                "research_queries": [
+                  "クエリ1", "クエリ2", "クエリ3", "クエリ4", "クエリ5",
+                  "クエリ6", "クエリ7", "クエリ8", "クエリ9", "クエリ10",
+                  "クエリ11", "クエリ12", "クエリ13", "クエリ14", "クエリ15"
+                ],
                 "competitor_analysis_needed": true,
                 "local_seo_focus": false,
                 "estimated_sections": 5
               },
-              "topic": "${{ inputs.article_title }}",
-              "target_audience": "${{ inputs.approach_target }}",
-              "keywords": "${{ inputs.main_keywords }}",
-              "processed_at": "ISO8601形式の現在時刻",
-              "workflow_version": "3.0.0"
+              "input_info": {
+                "title": "${{ inputs.article_title }}",
+                "main_keywords": "${{ inputs.main_keywords }}",
+                "approach_target": "${{ inputs.approach_target }}",
+                "eeat_elements": "${{ inputs.eeat_elements }}",
+                "word_count": "${{ inputs.word_count }}"
+              },
+              "processed_at": "現在時刻",
+              "workflow_version": "4.0.0"
             }
-            
-            ## 制約事項
-            - チャットにJSONを出力しない（ファイルに直接書き込む）
-            - 分析が不完全でも必ずファイルを作成（最低限の構造で）
-            - research_queriesは最低15個必須（後続処理のため）
-            - 他のファイルは作成・変更しない
-            
-            ## 失敗時の処理
-            何らかの理由で分析が失敗した場合でも、以下の最小構造でファイルを作成：
-            - main_keyword: タイトルの最初の単語
-            - research_queries: タイトルを元に機械的に15個生成
-            - その他: デフォルト値を設定
-            
-            ## 完了条件（必須確認項目）
-            1. output/${{ needs.initialize.outputs.article_id }}/phase1_output.json が存在する
-            2. JSONとして有効である（パース可能）
-            3. analysis.research_queries が15個以上含まれる
-            4. ファイルサイズが1KB以上ある
+            ```
             
             ## 注意点
             - 切り口・ターゲットの特性を考慮してキーワードを選定
             - E-E-A-T要素を反映した信頼性の高い記事構成を意識
             - リサーチクエリは具体的で検索しやすいものにする
             - 健康・美容分野では薬機法・景表法への配慮が必要
+          
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "5"
       
       - name: Verify and prepare analysis results
         run: |
@@ -452,6 +457,15 @@ jobs:
             - **信頼性**: リサーチ結果に基づいた正確な情報
             - **法規制対応**: 薬機法・景表法に配慮した表現計画
           
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
 
       - name: Upload structure artifacts
         uses: actions/upload-artifact@v4
@@ -482,30 +496,49 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: |
-            {
-              "model": "claude-3-5-sonnet-20241022",
-              "temperature": 0,
-              "max_tokens": 8000,
-              "system": "あなたは「HTML専用エミッタ」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n\n### ショートコード → HTML変換\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n[video url=\"URL\"] → <figure class=\"video-embed\"><iframe src=\"URL\" frameborder=\"0\" allowfullscreen loading=\"lazy\"></iframe><figcaption>動画コンテンツ</figcaption></figure>\n\n### Markdown記法 → HTML変換\n# 見出し → <h1>見出し</h1>\n## 見出し → <h2>見出し</h2>\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n![画像](URL) → <img src=\"URL\" alt=\"画像\" loading=\"lazy\">\n``` コード ``` → <pre><code>コード</code></pre>\n- リスト → <ul><li>リスト</li></ul>\n1. リスト → <ol><li>リスト</li></ol>\n\n## 🔍 出力前自己検証（必須）\n出力直前に以下をチェックし、見つかった場合は100%HTMLに変換：\n「```」「# 」「## 」「### 」「- 」「* 」「1. 」「[text](url)」「![alt](url)」「**text**」「*text*」「[blog_card」「[link_card」「[video」「[embed」\n\n## 📋 許可タグ\nhtml, head, meta, title, body, header, footer, main, section, article, nav, h1-h6, p, ul, ol, li, a, img, figure, figcaption, blockquote, pre, code, table, thead, tbody, tr, th, td, strong, em, sup, sub, br, hr, div, span, iframe\n\n**必須構造**: <div class=\"article-content\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
-            }
           prompt: |
-            記事タイトル: ${{ inputs.article_title }}
-            ターゲット: ${{ inputs.approach_target }}
-            主要KW: ${{ inputs.main_keywords }}
-            E-E-A-T要素: ${{ inputs.eeat_elements }}
-            目標文字数: ${{ inputs.word_count }}
+            # 記事本文生成（HTML形式）
             
-            以下のファイルを読み込んで記事を生成：
-            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json
-            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md
-            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md
-            - output/${{ needs.initialize.outputs.article_id }}/research_results.json
+            プロフェッショナルなコンテンツライターとして、Phase 2の構成に従って高品質な記事を生成してください。
+            CSSクラス名は提供された「スタイル仕様書」から必要に応じて使用します。
             
-            Phase 2構成を忠実に実装し、<div class="article-content">で囲んで出力。
-            画像は<figure class="article-content-image"><img src="[画像説明]" alt="詳細説明" loading="lazy"></figure>で配置。
+            ## 入力情報
             
-            output/${{ needs.initialize.outputs.article_id }}/final_article.html として保存してください。
+            ### 基本情報
+            - **記事タイトル**: ${{ inputs.article_title }}
+            - **切り口・ターゲット**: ${{ inputs.approach_target }}
+            - **主要KW**: ${{ inputs.main_keywords }}
+            - **E-E-A-T要素**: ${{ inputs.eeat_elements }}
+            - **目標文字数**: ${{ inputs.word_count }}
+            
+            ## タスク
+            
+            まず、以下のファイルを読み込んで内容を理解してください：
+            - output/${{ needs.initialize.outputs.article_id }}/phase1_output.json: Phase 1の分析結果
+            - output/${{ needs.initialize.outputs.article_id }}/01_article_structure.md: Phase 2の記事構成
+            - output/${{ needs.initialize.outputs.article_id }}/02_content_plan.md: Phase 2のコンテンツ計画
+            - output/${{ needs.initialize.outputs.article_id }}/research_results.json: リサーチ結果（出典URL含む）
+            
+            ## 記事生成ルール
+            
+            ### 1. 基本方針
+            - **Phase 2の構成を忠実に実装**してください
+            - WordPressのHTMLブロックに貼り付けることを前提
+            - セマンティックで読みやすいHTMLを生成
+            - **超重要**: Markdown記法は一切使用せず、すべて純粋なHTMLタグで出力してください
+            - 見出しは # ではなく <h2>, <h3> タグを使用
+            - 強調は ** ではなく <strong> タグを使用
+            - リストは - ではなく <ul><li> タグを使用
+            
+            ### 2. HTML構造の要件
+            
+            基本構造（必須）：
+            ```html
+            <div class="article-content">
+              <!-- 記事全体をこのコンテナで囲む -->
+              <!-- 以下、Phase 2の構成に従って記事を展開 -->
+            </div>
+            ```
             
             必要に応じて以下のクラスを使用：
             - リード文: `<p class="article-lead-text">`
@@ -591,6 +624,20 @@ jobs:
             
             文字数はPhase 2で決定した配分に従い、総文字数: ${{ inputs.word_count }}±300文字を遵守してください。
           
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            TITLE=${{ inputs.article_title }}
+            APPROACH_TARGET=${{ inputs.approach_target }}
+            MAIN_KEYWORDS=${{ inputs.main_keywords }}
+            EEAT_ELEMENTS=${{ inputs.eeat_elements }}
+            WORD_COUNT=${{ inputs.word_count }}
+          
+          max_turns: "15"
 
       - name: Verify article generation with fallback
         id: verify-article
@@ -618,94 +665,6 @@ jobs:
               echo "article_found=false" >> $GITHUB_OUTPUT
               exit 1
             fi
-          fi
-
-      - name: Check ANTHROPIC_API_KEY presence
-        id: keycheck
-        run: |
-          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "has_key=true" >> $GITHUB_OUTPUT
-            echo "🔑 ANTHROPIC_API_KEY is available"
-          else
-            echo "has_key=false" >> $GITHUB_OUTPUT
-            echo "⚠️  ANTHROPIC_API_KEY is not available"
-          fi
-
-      - name: Advanced HTML Validation & Auto-Fix
-        run: |
-          ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
-          HTML_FILE="${ARTICLE_DIR}/final_article.html"
-          
-          echo "🔍 Starting comprehensive HTML validation..."
-          
-          # Step 1: 初回バリデーション（ベストエフォート）
-          echo "📋 Step 1: Initial HTML validation"
-          python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}" || VALIDATION_FAILED=true
-          
-          if [ "$VALIDATION_FAILED" = "true" ]; then
-            echo "⚠️  HTML validation failed. Starting auto-fix process..."
-            
-            # Step 2: ショートコード自動変換（ベストエフォート）
-            echo "📋 Step 2: Converting shortcodes to HTML"
-            python3 github-actions/scripts/convert_shortcodes_to_html.py "${HTML_FILE}" || echo "⚠️  Shortcode conversion had issues"
-            
-            # Step 3: Markdown番号付きリスト変換（ベストエフォート）
-            echo "📋 Step 3: Converting Markdown numbered lists to HTML"
-            python3 github-actions/scripts/convert_markdown_lists_to_html.py "${HTML_FILE}" || echo "⚠️  Markdown list conversion had issues"
-            
-            # Step 4: 中間バリデーション（ベストエフォート）
-            echo "📋 Step 4: Intermediate validation after conversions"
-            python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}" || INTERMEDIATE_VALIDATION_FAILED=true
-            
-            if [ "$INTERMEDIATE_VALIDATION_FAILED" = "true" ]; then
-              echo "📋 Step 5: Attempting Claude API auto-fix"
-              
-              # Step 5: Claude API自動修正（条件付き・ベストエフォート）
-              if [ "${{ steps.keycheck.outputs.has_key }}" = "true" ] && \
-                 [ "${{ github.event_name }}" != "pull_request" -o "${{ github.event.pull_request.head.repo.fork }}" = "false" ]; then
-                echo "🤖 Running Claude API auto-fix..."
-                python3 github-actions/scripts/auto_fix_html_output.py "${HTML_FILE}" || echo "⚠️  Auto-fix encountered issues"
-              else
-                echo "⏭️  Skipping Claude API auto-fix (API key unavailable or fork PR)"
-              fi
-            else
-              echo "✅ HTML validation passed after manual conversions!"
-            fi
-          else
-            echo "✅ HTML validation passed on first try!"
-          fi
-          
-          # Step 6: 最終バリデーションゲート（厳密判定）
-          echo ""
-          echo "📋 Step 6: Final validation gate"
-          echo "🔍 Running final comprehensive validation..."
-          
-          if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
-            echo "✅ Final HTML validation PASSED!"
-            
-            # 成功統計の出力
-            echo ""
-            echo "📊 Final HTML Quality Report:"
-            ls -lh "${HTML_FILE}"
-            echo "File size: $(wc -c < "${HTML_FILE}") bytes"
-            echo "Line count: $(wc -l < "${HTML_FILE}") lines"
-            echo "✅ HTML output is ready for upload"
-          else
-            echo "❌ Final HTML validation FAILED"
-            echo "❌ Despite best efforts, HTML output still contains issues"
-            echo "❌ Manual intervention or system improvement required"
-            
-            # デバッグ情報の出力
-            echo ""
-            echo "🔧 Debug Information:"
-            echo "File exists: $(test -f "${HTML_FILE}" && echo "YES" || echo "NO")"
-            if [ -f "${HTML_FILE}" ]; then
-              echo "File size: $(wc -c < "${HTML_FILE}") bytes"
-              echo "First 10 lines:"
-              head -10 "${HTML_FILE}"
-            fi
-            
-            exit 1
           fi
 
       - name: Upload content artifacts
@@ -743,26 +702,13 @@ jobs:
           echo "WORKSPACE: ${{ github.workspace }}"
           echo "Expected factcheck path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json"
           echo ""
-          
-          # HTMLとMD両方をチェック
-          ARTICLE_FILE=""
-          echo "📄 Checking for article file:"
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.html" ]; then
-            echo "✅ final_article.html exists"
-            wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.html
-            ARTICLE_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.html"
-          elif [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
+          echo "📄 Checking final_article.md:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
             echo "✅ final_article.md exists"
             wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.md
-            ARTICLE_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.md"
           else
-            echo "❌ No final article found (.html or .md)"
-            exit 1
+            echo "❌ final_article.md NOT found"
           fi
-          
-          # 見つかったファイルパスを出力に保存
-          echo "article_file=${ARTICLE_FILE}" >> $GITHUB_OUTPUT
-          echo "✅ Using article file: ${ARTICLE_FILE}"
           echo ""
           echo "📄 Checking research_results.json:"
           if [ -f "output/${{ needs.initialize.outputs.article_id }}/research_results.json" ]; then
@@ -776,15 +722,11 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: |
-            {
-              "model": "claude-3-5-sonnet-20241022",
-              "temperature": 0,
-              "max_tokens": 4000,
-              "system": "あなたは「HTML専用ファクトチェッカー」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"factcheck-report\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
-            }
+          
           prompt: |
-            記事のファクトチェックと品質スコア算出を実行。
+            # 記事ファクトチェック・品質スコア算出
+            
+            記事のファクトチェックを行い、品質スコアを算出してください。
             
             ## タスク
             
@@ -869,6 +811,16 @@ jobs:
             - **ターゲット視点**: 読者（切り口・ターゲット）の理解しやすさを重視
             - **法規制の理解**: 健康・美容分野の表現規制を正しく適用
           
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORKSPACE=${{ github.workspace }}
+          
+          max_turns: "10"
 
       - name: Debug - Check Claude execution
         run: |
@@ -941,13 +893,7 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: |
-            {
-              "model": "claude-3-5-sonnet-20241022",
-              "temperature": 0,
-              "max_tokens": 4000,
-              "system": "あなたは「HTML専用SEO専門家」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"seo-metadata\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
-            }
+          
           prompt: |
             # SEOメタ情報生成
             
@@ -1049,6 +995,16 @@ jobs:
             4. **E-E-A-T**: 専門性・権威性・信頼性を意識
             5. **ペルソナ最適化**: ターゲット層に響く表現を選択
           
+          allowed_tools: |
+            Read,
+            Write
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+            WORD_COUNT=${{ inputs.word_count }}
+            WORKSPACE=${{ github.workspace }}
+          
+          max_turns: "30"
 
       - name: Debug - Check Claude execution for SEO
         run: |
@@ -1087,9 +1043,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
-    outputs:
-      images_found: ${{ steps.check_images.outputs.found }}
-      images_count: ${{ steps.check_images.outputs.count }}
     
     steps:
       - name: Checkout repository
@@ -1106,29 +1059,6 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          mcp_config: |
-            {
-              "mcpServers": {
-                "gemini-imagen": {
-                  "command": "npx",
-                  "args": [
-                    "-y", 
-                    "gemini-imagen-mcp-server",
-                    "--model", "imagen-4"
-                  ],
-                  "env": {
-                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
-                  }
-                }
-              }
-            }
-          
-          allowed_tools: |
-            Read,
-            Write,
-            mcp__gemini-imagen__generate_image,
-            mcp__gemini-imagen__list_models
           
           prompt: |
             記事に最適な画像を複数枚生成してください。合計4-5枚の画像を生成します。
@@ -1175,6 +1105,33 @@ jobs:
                
             重要: 必ず5回のmcp__gemini-imagen__generate_imageを実行して、複数枚の画像を生成してください。
           
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            Read,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "30"
 
       - name: Process generated images
         run: |
@@ -1212,35 +1169,13 @@ jobs:
             echo "⚠️ No images generated"
           fi
 
-      - name: Check and validate images
-        id: check_images
-        run: |
-          set -euo pipefail
-          ART_ID="${{ needs.initialize.outputs.article_id }}"
-          
-          # 画像をカウント
-          shopt -s nullglob
-          files=(output/${ART_ID}/images/* imagen/*)
-          IMAGE_COUNT=${#files[@]}
-          
-          if (( IMAGE_COUNT > 0 )); then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "count=${IMAGE_COUNT}" >> "$GITHUB_OUTPUT"
-            echo "✅ Found ${IMAGE_COUNT} images"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "count=0" >> "$GITHUB_OUTPUT"
-            echo "⚠️ No images found"
-          fi
-
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
         with:
           name: images-${{ needs.initialize.outputs.article_id }}
           path: |
-            output/${{ needs.initialize.outputs.article_id }}/images/**
-            imagen/**
-          if-no-files-found: warn
+            output/${{ needs.initialize.outputs.article_id }}/images
+            imagen/
           retention-days: 30
 
   # ジョブ10: 最終処理（5つの成果物）
@@ -1255,44 +1190,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download non-image artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: |
-            phase1-${{ needs.initialize.outputs.article_id }}
-            research-${{ needs.initialize.outputs.article_id }}
-            structure-${{ needs.initialize.outputs.article_id }}
-            content-${{ needs.initialize.outputs.article_id }}
-            factcheck-${{ needs.initialize.outputs.article_id }}
-            seo-meta-${{ needs.initialize.outputs.article_id }}
+          pattern: '*-${{ needs.initialize.outputs.article_id }}'
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
-          
-      - name: Download image artifacts conditionally
-        if: needs.generate-images.outputs.images_found == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: images-${{ needs.initialize.outputs.article_id }}
-          path: output/${{ needs.initialize.outputs.article_id }}/images
-          
-      - name: Handle missing images
-        if: needs.generate-images.outputs.images_found != 'true'
-        run: |
-          echo "⚠️ No images available from generate-images job"
-          mkdir -p output/${{ needs.initialize.outputs.article_id }}/images
-          # プレースホルダー画像の生成や警告メッセージの追加（オプション）
 
       - name: Create final package with Claude
         uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: |
-            {
-              "model": "claude-3-5-sonnet-20241022",
-              "temperature": 0,
-              "max_tokens": 8000,
-              "system": "あなたは「HTML専用パッケージ管理専門家」です。出力は純粋なHTMLのみ。\n\n## 🚫 絶対禁止事項\n- Markdown記法、コードフェンス(```)、説明文、余計な前置き・後置きを一切禁止\n- ショートコード記法（[blog_card]、[link_card]、[video]、[embed]等）は100%禁止\n\n## ✅ 変換ルール（必須）\n[blog_card url=\"URL\"] → <figure class=\"link-card\"><a href=\"URL\" target=\"_blank\" rel=\"noopener\"><div class=\"link-card-content\"><p class=\"link-card-title\">関連記事</p><p class=\"link-card-url\">URL</p></div></a></figure>\n\n**太字** → <strong>太字</strong>\n*斜体* → <em>斜体</em>\n[リンク](URL) → <a href=\"URL\">リンク</a>\n\n## 🔍 出力前自己検証（必須）\n出力直前にチェック：「```」「# 」「## 」「**text**」「*text*」「[blog_card」「[link_card」\n\n**必須構造**: <div class=\"final-package\">内容</div>\n\n出力品質100%、HTML純度100%を保証すること。"
-            }
+          
           prompt: |
             # 最終まとめ・成果物整理
             
@@ -1475,6 +1384,15 @@ jobs:
             - プレースホルダー（[実際の〜]）は実際の値に置き換える
             - 不要なファイルは削除しない（制作側で選択）
           
+          allowed_tools: |
+            Read,
+            Write,
+            Edit
+          
+          claude_env: |
+            ARTICLE_ID=${{ needs.initialize.outputs.article_id }}
+          
+          max_turns: "10"
 
       # Google Drive upload removed - using GitHub Artifacts only
 
