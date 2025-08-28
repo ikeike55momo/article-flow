@@ -819,49 +819,98 @@ jobs:
             fi
           fi
 
+      - name: Check ANTHROPIC_API_KEY presence
+        id: keycheck
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+            echo "✅ ANTHROPIC_API_KEY is available"
+          else
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            echo "⚠️  ANTHROPIC_API_KEY is not available - Claude API auto-fix will be skipped"
+          fi
+      
       - name: Advanced HTML Validation & Auto-Fix
+        continue-on-error: false
         run: |
           ARTICLE_DIR="output/${{ needs.initialize.outputs.article_id }}"
           HTML_FILE="${ARTICLE_DIR}/final_article.html"
           
           echo "🔍 Starting comprehensive HTML validation..."
+          echo "🏗️  Article ID: ${{ needs.initialize.outputs.article_id }}"
+          echo "📁 Article Directory: ${ARTICLE_DIR}"
+          echo "📄 HTML File: ${HTML_FILE}"
+          echo "🔑 ANTHROPIC_API_KEY available: ${{ steps.keycheck.outputs.has_key }}"
           
-          # Step 1: 高度バリデーション実行
+          # Step 1: Initial HTML validation (best effort)
+          echo ""
+          echo "=== Step 1: Initial HTML Validation ==="
           if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
             echo "✅ HTML validation passed on first try!"
+            exit 0
           else
-            echo "⚠️  HTML validation failed. Starting auto-fix process..."
-            
-            # Step 2: ショートコード自動変換
-            echo "🔄 Converting shortcodes to HTML..."
-            python3 github-actions/scripts/convert_shortcodes_to_html.py "${HTML_FILE}"
-            
-            # Step 3: 再度バリデーション
-            if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
-              echo "✅ HTML validation passed after shortcode conversion!"
-            else
-              echo "🤖 Running Claude API auto-fix..."
-              
-              # Step 4: Claude API自動修正
-              if python3 github-actions/scripts/auto_fix_html_output.py "${HTML_FILE}"; then
-                echo "🔧 Auto-fix completed. Final validation..."
-                
-                # Step 5: 最終バリデーション
-                if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
-                  echo "✅ HTML validation passed after auto-fix!"
-                else
-                  echo "❌ HTML validation failed even after auto-fix"
-                  echo "Manual intervention required"
-                  exit 1
-                fi
-              else
-                echo "❌ Auto-fix failed"
-                exit 1
-              fi
-            fi
+            echo "⚠️  HTML validation failed. Proceeding with auto-fix process..."
           fi
           
-          # Step 6: 最終検証統計
+          # Step 2: Shortcode conversion (best effort)
+          echo ""
+          echo "=== Step 2: Shortcode Auto-Conversion ==="
+          if python3 github-actions/scripts/convert_shortcodes_to_html.py "${HTML_FILE}"; then
+            echo "✅ Shortcode conversion completed"
+          else
+            echo "⚠️  Shortcode conversion failed, continuing..."
+          fi
+          
+          # Step 3: Markdown numbered lists conversion (best effort)
+          echo ""
+          echo "=== Step 3: Markdown Lists Auto-Conversion ==="
+          if python3 github-actions/scripts/convert_markdown_lists_to_html.py "${HTML_FILE}"; then
+            echo "✅ Markdown lists conversion completed"
+          else
+            echo "⚠️  Markdown lists conversion failed, continuing..."
+          fi
+          
+          # Step 4: Post-conversion validation (best effort)
+          echo ""
+          echo "=== Step 4: Post-Conversion Validation ==="
+          if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
+            echo "✅ HTML validation passed after conversion steps!"
+            exit 0
+          else
+            echo "⚠️  HTML validation still failing. Checking Claude API availability..."
+          fi
+          
+          # Step 5: Claude API auto-fix (conditional)
+          echo ""
+          echo "=== Step 5: Claude API Auto-Fix ==="
+          if [ "${{ steps.keycheck.outputs.has_key }}" = "true" ]; then
+            echo "🤖 Running Claude API auto-fix..."
+            if python3 github-actions/scripts/auto_fix_html_output.py "${HTML_FILE}"; then
+              echo "✅ Claude API auto-fix completed"
+            else
+              echo "⚠️  Claude API auto-fix failed, proceeding to final validation..."
+            fi
+          else
+            echo "⏭️  Skipping Claude API auto-fix (ANTHROPIC_API_KEY not available)"
+          fi
+          
+          # Step 6: Final strict validation (mandatory)
+          echo ""
+          echo "=== Step 6: Final Strict Validation ==="
+          if python3 github-actions/scripts/validate_html_output.py "${HTML_FILE}"; then
+            echo "✅ HTML validation passed - ready for deployment!"
+          else
+            echo "❌ HTML validation failed even after all auto-fix attempts"
+            echo "🔍 Debug information:"
+            echo "   - File exists: $([ -f "${HTML_FILE}" ] && echo "Yes" || echo "No")"
+            echo "   - File size: $([ -f "${HTML_FILE}" ] && wc -c < "${HTML_FILE}" || echo "N/A") bytes"
+            echo "   - File readable: $([ -r "${HTML_FILE}" ] && echo "Yes" || echo "No")"
+            echo ""
+            echo "❗ Manual intervention required"
+            exit 1
+          fi
+          
+          # Success summary
           echo ""
           echo "📊 Final HTML Quality Report:"
           ls -lh "${HTML_FILE}"

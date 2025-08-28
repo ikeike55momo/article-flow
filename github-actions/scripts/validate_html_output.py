@@ -125,7 +125,7 @@ class HTMLValidator:
         important_tags = ['div', 'section', 'article', 'figure', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
         
         for tag in important_tags:
-            open_count = len(re.findall(f'<{tag}(?:\s[^>]*)?>', html_content, re.IGNORECASE))
+            open_count = len(re.findall(f'<{tag}(?:\\s[^>]*)?>', html_content, re.IGNORECASE))
             close_count = len(re.findall(f'</{tag}>', html_content, re.IGNORECASE))
             
             if open_count != close_count:

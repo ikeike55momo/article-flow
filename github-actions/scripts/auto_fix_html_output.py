@@ -84,6 +84,9 @@ class HTMLAutoFixer:
         
         try:
             print("🤖 Calling Claude API for HTML correction...")
+            print(f"🔗 API URL: {self.api_url}")
+            print(f"📦 Payload size: {len(json.dumps(payload))} bytes")
+            
             response = requests.post(
                 self.api_url,
                 headers=self.headers,
@@ -91,25 +94,58 @@ class HTMLAutoFixer:
                 timeout=60
             )
             
+            print(f"📡 API Response status: {response.status_code}")
+            
             if response.status_code == 200:
-                result = response.json()
-                if 'content' in result and len(result['content']) > 0:
-                    fixed_content = result['content'][0]['text']
-                    print("✅ HTML fixed successfully by Claude API")
-                    return fixed_content.strip()
-                else:
-                    print("❌ No content in Claude API response")
+                try:
+                    result = response.json()
+                    if 'content' in result and len(result['content']) > 0:
+                        fixed_content = result['content'][0]['text']
+                        print("✅ HTML fixed successfully by Claude API")
+                        print(f"📊 Fixed content length: {len(fixed_content)} characters")
+                        return fixed_content.strip()
+                    else:
+                        print("❌ No content in Claude API response")
+                        print(f"🔍 Response structure: {list(result.keys()) if result else 'Empty response'}")
+                        return None
+                except json.JSONDecodeError as e:
+                    print(f"❌ Failed to parse Claude API response as JSON: {e}")
+                    print(f"🔍 Raw response: {response.text[:500]}...")
                     return None
+            elif response.status_code == 401:
+                print("❌ Claude API authentication failed (401)")
+                print("🔍 Check ANTHROPIC_API_KEY validity")
+                return None
+            elif response.status_code == 429:
+                print("❌ Claude API rate limit exceeded (429)")
+                print("🔍 Consider implementing retry with backoff")
+                return None
+            elif response.status_code >= 500:
+                print(f"❌ Claude API server error ({response.status_code})")
+                print("🔍 Anthropic service may be experiencing issues")
+                return None
             else:
                 print(f"❌ Claude API error: {response.status_code}")
-                print(f"Response: {response.text}")
+                print(f"🔍 Response: {response.text[:500]}...")
                 return None
                 
         except requests.exceptions.Timeout:
-            print("❌ Claude API timeout")
+            print("❌ Claude API timeout (60 seconds)")
+            print("🔍 Consider increasing timeout or checking network connection")
+            return None
+        except requests.exceptions.ConnectionError as e:
+            print(f"❌ Claude API connection error: {e}")
+            print("🔍 Check internet connectivity and API endpoint accessibility")
+            return None
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Claude API request failed: {e}")
+            print(f"🔍 Request exception type: {type(e).__name__}")
             return None
         except Exception as e:
-            print(f"❌ Claude API request failed: {e}")
+            print(f"❌ Unexpected error during API call: {e}")
+            print(f"🔍 Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def fix_file(self, file_path: str) -> bool:
@@ -162,20 +198,58 @@ def main():
         sys.exit(1)
     
     html_file = sys.argv[1]
-    api_key = os.environ.get('ANTHROPIC_API_KEY')
     
+    # 環境変数の詳細チェック
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
     if not api_key:
         print("❌ ANTHROPIC_API_KEY environment variable not set")
+        print("🔍 Environment check:")
+        print(f"   - Current working directory: {os.getcwd()}")
+        print(f"   - Available env vars: {sorted([k for k in os.environ.keys() if 'ANTHROPIC' in k or 'CLAUDE' in k])}")
+        print("ℹ️  This script requires a valid Anthropic API key to function")
         sys.exit(1)
     
-    fixer = HTMLAutoFixer(api_key)
-    success = fixer.fix_file(html_file)
+    # API キーの形式検証
+    if not api_key.startswith('sk-'):
+        print("⚠️  Warning: ANTHROPIC_API_KEY may be in incorrect format (should start with 'sk-')")
+        print(f"   - Key starts with: '{api_key[:10]}...'" if len(api_key) > 10 else f"   - Key: '{api_key}'")
     
-    if success:
-        print("✅ HTML auto-fix completed successfully")
-        sys.exit(0)
-    else:
-        print("❌ HTML auto-fix failed")
+    # ファイル存在確認
+    if not os.path.exists(html_file):
+        print(f"❌ HTML file not found: {html_file}")
+        print(f"🔍 Current directory contents: {os.listdir('.')}")
+        sys.exit(1)
+    
+    # ファイル読み取り権限確認
+    if not os.access(html_file, os.R_OK):
+        print(f"❌ HTML file is not readable: {html_file}")
+        sys.exit(1)
+    
+    # ファイル書き込み権限確認
+    if not os.access(html_file, os.W_OK):
+        print(f"❌ HTML file is not writable: {html_file}")
+        sys.exit(1)
+    
+    print(f"🔧 Starting Claude API auto-fix for: {html_file}")
+    print(f"🔑 Using API key: {api_key[:10]}...{api_key[-4:] if len(api_key) > 14 else ''}")
+    
+    try:
+        fixer = HTMLAutoFixer(api_key)
+        success = fixer.fix_file(html_file)
+        
+        if success:
+            print("✅ HTML auto-fix completed successfully")
+            sys.exit(0)
+        else:
+            print("❌ HTML auto-fix failed")
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"❌ Unexpected error during auto-fix: {e}")
+        print(f"🔍 Error type: {type(e).__name__}")
+        import traceback
+        print("🔍 Traceback:")
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":

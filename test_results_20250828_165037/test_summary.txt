@@ -1,0 +1,31 @@
+HTML VALIDATION PIPELINE - INTEGRATION TEST SUMMARY
+============================================================
+Test Session: 20250828_165037
+Executed At: 2025-08-28T16:50:38.465197
+
+RESULTS:
+Total Tests: 11
+Passed: 8
+Failed: 3
+Success Rate: 72.7%
+Total Execution Time: 0.58 seconds
+
+INDIVIDUAL TEST RESULTS:
+------------------------------------------------------------
+[PASS] Markdown List Conversion (0.08s)
+[PASS] Shortcode Conversion (0.02s)
+[PASS] HTML Validation (0.02s)
+[PASS] Integrated Workflow (0.08s)
+[FAIL] Nonexistent File Handling (0.02s)
+       Error: 
+[PASS] Malformed HTML Handling (0.02s)
+[FAIL] Missing Environment Variable Handling (0.03s)
+       Error: Traceback (most recent call last):
+  File "/Users/nu/Project/article-flow/github-actions/scripts/auto_fix_html_output.py", line 10, in <module>
+    import requests
+ModuleNotFoundError: No module named 'requests'
+
+[PASS] Large HTML Processing (0.06s)
+[PASS] Processing Time Limits (0.08s)
+[PASS] All Scripts Executable (0.13s)
+[FAIL] Python Dependencies (0.03s)

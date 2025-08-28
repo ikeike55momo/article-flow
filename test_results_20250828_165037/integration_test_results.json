@@ -1,0 +1,198 @@
+{
+  "test_session": "20250828_165037",
+  "executed_at": "2025-08-28T16:50:38.464784",
+  "total_tests": 11,
+  "passed_tests": 8,
+  "failed_tests": 3,
+  "total_execution_time": 0.577589,
+  "test_results": [
+    {
+      "test_name": "Markdown List Conversion",
+      "passed": true,
+      "execution_time": 0.08134,
+      "details": {
+        "exit_code": 0,
+        "has_ol_tags": true,
+        "remaining_markdown_lines": 0
+      },
+      "output": "🔄 Converting Markdown numbered lists to HTML in: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpzcfjd157.html\n📝 Detected numbered list blocks before conversion: 2\n📝 Total numbered list items: 5\n📝 Example items:\n   - 1. 最初の手順です\n   - 2. 二番目の手順です\n   - 3. 三番目の手順です\n   ✅ Converted block with 2 items\n   ✅ Converted block with 3 items\n✅ Converted 2 numbered list blocks to HTML\n✅ Remaining Markdown lists: 0 blocks (0 items)\n✅ HTML structure validation passed\n📊 Conversion effectiveness: 100.0% of items converted\n💾 File updated: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpzcfjd157.html\n💾 Backup created: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpzcfjd157.html.backup\n",
+      "error": null
+    },
+    {
+      "test_name": "Shortcode Conversion",
+      "passed": true,
+      "execution_time": 0.018866,
+      "details": {
+        "exit_code": 0,
+        "has_figure_tags": true,
+        "has_video_tags": true,
+        "remaining_shortcodes": false
+      },
+      "output": "🔄 Converting shortcodes in: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp071a18zr.html\n📝 Detected shortcodes before conversion: 2\n   - [blog_card url=\"https://example.com/article1\"]\n   - [video url=\"https://example.com/video.mp4\"]\n✅ All shortcodes converted successfully\n💾 File updated: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp071a18zr.html\n",
+      "error": null
+    },
+    {
+      "test_name": "HTML Validation",
+      "passed": true,
+      "execution_time": 0.019305,
+      "details": {
+        "exit_code": 0,
+        "validation_passed": true
+      },
+      "output": "🔍 Validating HTML file: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpoulafq4e.html\n============================================================\n📊 HTML VALIDATION REPORT\n============================================================\n📁 File: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpoulafq4e.html\n📏 Size: 189 bytes\n🔢 Total issues: 0\n\n🏗️  HTML STRUCTURE VALIDATION:\n   ✅ required_structure_1\n   ✅ required_structure_2\n   ✅ single_article_content_div\n   ✅ well_formed_tags\n\n✅ VALIDATION PASSED - HTML output is clean!\n",
+      "error": null
+    },
+    {
+      "test_name": "Integrated Workflow",
+      "passed": true,
+      "execution_time": 0.081386,
+      "details": {
+        "step1_shortcode_conversion": true,
+        "step2_markdown_conversion": true,
+        "step3_validation": true,
+        "has_ol_tags": true,
+        "has_figure_tags": true,
+        "no_remaining_markdown": true,
+        "no_remaining_shortcodes": true
+      },
+      "step_outputs": {
+        "step1": "🔄 Converting shortcodes in: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n📝 Detected shortcodes before conversion: 1\n   - [blog_card url=\"https://example.com/related\"]\n✅ All shortcodes converted successfully\n💾 File updated: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n",
+        "step2": "🔄 Converting Markdown numbered lists to HTML in: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n📝 Detected numbered list blocks before conversion: 1\n📝 Total numbered list items: 3\n📝 Example items:\n   - 1. 最初のステップ\n   - 2. 次のステップ\n   - 3. 最終ステップ\n   ✅ Converted block with 3 items\n✅ Converted 1 numbered list blocks to HTML\n✅ Remaining Markdown lists: 0 blocks (0 items)\n✅ HTML structure validation passed\n📊 Conversion effectiveness: 100.0% of items converted\n💾 File updated: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n💾 Backup created: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html.backup\n",
+        "step3": "🔍 Validating HTML file: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n============================================================\n📊 HTML VALIDATION REPORT\n============================================================\n📁 File: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmp70izsaed.html\n📏 Size: 579 bytes\n🔢 Total issues: 0\n\n🏗️  HTML STRUCTURE VALIDATION:\n   ✅ required_structure_1\n   ✅ required_structure_2\n   ✅ single_article_content_div\n   ✅ well_formed_tags\n\n✅ VALIDATION PASSED - HTML output is clean!\n"
+      }
+    },
+    {
+      "test_name": "Nonexistent File Handling",
+      "passed": false,
+      "execution_time": 0.017334,
+      "details": {
+        "exit_code": 1,
+        "error_handling": false
+      },
+      "output": "🔍 Validating HTML file: /tmp/nonexistent_file_12345.html\n============================================================\n📊 HTML VALIDATION REPORT\n============================================================\n❌ Error: File not found: /tmp/nonexistent_file_12345.html\n",
+      "error": ""
+    },
+    {
+      "test_name": "Malformed HTML Handling",
+      "passed": true,
+      "execution_time": 0.017591,
+      "details": {
+        "exit_code": 1,
+        "validation_failed_as_expected": true
+      },
+      "output": "🔍 Validating HTML file: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmphy6rx45m.html\n⚠️  Tag balance issue: <p> opens:2 closes:1\n============================================================\n📊 HTML VALIDATION REPORT\n============================================================\n📁 File: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmphy6rx45m.html\n📏 Size: 157 bytes\n🔢 Total issues: 1\n\n🏗️  HTML STRUCTURE VALIDATION:\n   ✅ required_structure_1\n   ✅ required_structure_2\n   ✅ single_article_content_div\n   ❌ well_formed_tags\n\n💡 RECOMMENDATIONS:\n   🔗 HTMLタグの開始・終了バランスを修正\n\n❌ VALIDATION FAILED - Issues detected!\n",
+      "error": null
+    },
+    {
+      "test_name": "Missing Environment Variable Handling",
+      "passed": false,
+      "execution_time": 0.034645,
+      "details": {
+        "exit_code": 1,
+        "proper_error_handling": false
+      },
+      "output": "",
+      "error": "Traceback (most recent call last):\n  File \"/Users/nu/Project/article-flow/github-actions/scripts/auto_fix_html_output.py\", line 10, in <module>\n    import requests\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "test_name": "Large HTML Processing",
+      "passed": true,
+      "execution_time": 0.059348,
+      "details": {
+        "file_size_bytes": 27236,
+        "exit_code": 0,
+        "performance_within_limits": true,
+        "time_limit_seconds": 60.0
+      },
+      "output": "h 3 items\n   ✅ Converted block with 3 items\n   ✅ Converted block with 3 items\n   ✅ Converted block with 3 items\n   ✅ Converted block with 3 items\n✅ Converted 100 numbered list blocks to HTML\n✅ Remaining Markdown lists: 0 blocks (0 items)\n✅ HTML structure validation passed\n📊 Conversion effectiveness: 100.0% of items converted\n💾 File updated: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpyp6kweny.html\n💾 Backup created: /var/folders/8g/vf200l6x1tzgj7l43977xgpw0000gn/T/tmpyp6kweny.html.backup\n",
+      "error": null
+    },
+    {
+      "test_name": "Processing Time Limits",
+      "passed": true,
+      "execution_time": 0.084232,
+      "details": {
+        "script_times": {
+          "convert_shortcodes_to_html.py": 0.017487,
+          "convert_markdown_lists_to_html.py": 0.047744,
+          "validate_html_output.py": 0.018748
+        },
+        "time_limit_per_script": 10.0,
+        "all_within_limits": true
+      }
+    },
+    {
+      "test_name": "All Scripts Executable",
+      "passed": true,
+      "execution_time": 0.133844,
+      "details": {
+        "scripts_checked": 6,
+        "scripts_results": {
+          "convert_shortcodes_to_html.py": {
+            "exists": true,
+            "executable": true,
+            "syntax_ok": true,
+            "overall_ok": true
+          },
+          "convert_markdown_lists_to_html.py": {
+            "exists": true,
+            "executable": true,
+            "syntax_ok": true,
+            "overall_ok": true
+          },
+          "validate_html_output.py": {
+            "exists": true,
+            "executable": true,
+            "syntax_ok": true,
+            "overall_ok": true
+          },
+          "auto_fix_html_output.py": {
+            "exists": true,
+            "executable": true,
+            "syntax_ok": true,
+            "overall_ok": true
+          },
+          "generate_validation_report.py": {
+            "exists": true,
+            "executable": false,
+            "syntax_ok": true,
+            "overall_ok": true
+          },
+          "save_debug_artifacts.py": {
+            "exists": true,
+            "executable": false,
+            "syntax_ok": true,
+            "overall_ok": true
+          }
+        },
+        "all_executable": true
+      }
+    },
+    {
+      "test_name": "Python Dependencies",
+      "passed": false,
+      "execution_time": 0.029698,
+      "details": {
+        "required_modules": [
+          "json",
+          "os",
+          "sys",
+          "re",
+          "requests",
+          "datetime",
+          "tempfile",
+          "shutil",
+          "subprocess"
+        ],
+        "optional_modules": [
+          "bs4"
+        ],
+        "missing_required": [
+          "requests"
+        ],
+        "missing_optional": [],
+        "python_version": "3.13.2 (main, Feb  4 2025, 14:51:09) [Clang 16.0.0 (clang-1600.0.26.6)]"
+      }
+    }
+  ]
+}
