@@ -1107,6 +1107,29 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           
+          mcp_config: |
+            {
+              "mcpServers": {
+                "gemini-imagen": {
+                  "command": "npx",
+                  "args": [
+                    "-y", 
+                    "gemini-imagen-mcp-server",
+                    "--model", "imagen-4"
+                  ],
+                  "env": {
+                    "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                  }
+                }
+              }
+            }
+          
+          allowed_tools: |
+            Read,
+            Write,
+            mcp__gemini-imagen__generate_image,
+            mcp__gemini-imagen__list_models
+          
           prompt: |
             記事に最適な画像を複数枚生成してください。合計4-5枚の画像を生成します。
             
