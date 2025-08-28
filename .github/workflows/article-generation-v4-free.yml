@@ -904,13 +904,26 @@ jobs:
           echo "WORKSPACE: ${{ github.workspace }}"
           echo "Expected factcheck path: ${{ github.workspace }}/output/${{ needs.initialize.outputs.article_id }}/factcheck_report.json"
           echo ""
-          echo "📄 Checking final_article.md:"
-          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
+          
+          # HTMLとMD両方をチェック
+          ARTICLE_FILE=""
+          echo "📄 Checking for article file:"
+          if [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.html" ]; then
+            echo "✅ final_article.html exists"
+            wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.html
+            ARTICLE_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.html"
+          elif [ -f "output/${{ needs.initialize.outputs.article_id }}/final_article.md" ]; then
             echo "✅ final_article.md exists"
             wc -l output/${{ needs.initialize.outputs.article_id }}/final_article.md
+            ARTICLE_FILE="output/${{ needs.initialize.outputs.article_id }}/final_article.md"
           else
-            echo "❌ final_article.md NOT found"
+            echo "❌ No final article found (.html or .md)"
+            exit 1
           fi
+          
+          # 見つかったファイルパスを出力に保存
+          echo "article_file=${ARTICLE_FILE}" >> $GITHUB_OUTPUT
+          echo "✅ Using article file: ${ARTICLE_FILE}"
           echo ""
           echo "📄 Checking research_results.json:"
           if [ -f "output/${{ needs.initialize.outputs.article_id }}/research_results.json" ]; then
@@ -1254,6 +1267,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: GA
     timeout-minutes: 20
+    outputs:
+      images_found: ${{ steps.check_images.outputs.found }}
+      images_count: ${{ steps.check_images.outputs.count }}
     
     steps:
       - name: Checkout repository
@@ -1353,13 +1369,35 @@ jobs:
             echo "⚠️ No images generated"
           fi
 
+      - name: Check and validate images
+        id: check_images
+        run: |
+          set -euo pipefail
+          ART_ID="${{ needs.initialize.outputs.article_id }}"
+          
+          # 画像をカウント
+          shopt -s nullglob
+          files=(output/${ART_ID}/images/* imagen/*)
+          IMAGE_COUNT=${#files[@]}
+          
+          if (( IMAGE_COUNT > 0 )); then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "count=${IMAGE_COUNT}" >> "$GITHUB_OUTPUT"
+            echo "✅ Found ${IMAGE_COUNT} images"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "⚠️ No images found"
+          fi
+
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
         with:
           name: images-${{ needs.initialize.outputs.article_id }}
           path: |
-            output/${{ needs.initialize.outputs.article_id }}/images
-            imagen/
+            output/${{ needs.initialize.outputs.article_id }}/images/**
+            imagen/**
+          if-no-files-found: warn
           retention-days: 30
 
   # ジョブ10: 最終処理（5つの成果物）
@@ -1374,12 +1412,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download non-image artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: '*-${{ needs.initialize.outputs.article_id }}'
+          pattern: |
+            phase1-${{ needs.initialize.outputs.article_id }}
+            research-${{ needs.initialize.outputs.article_id }}
+            structure-${{ needs.initialize.outputs.article_id }}
+            content-${{ needs.initialize.outputs.article_id }}
+            factcheck-${{ needs.initialize.outputs.article_id }}
+            seo-meta-${{ needs.initialize.outputs.article_id }}
           path: output/${{ needs.initialize.outputs.article_id }}
           merge-multiple: true
+          
+      - name: Download image artifacts conditionally
+        if: needs.generate-images.outputs.images_found == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: images-${{ needs.initialize.outputs.article_id }}
+          path: output/${{ needs.initialize.outputs.article_id }}/images
+          
+      - name: Handle missing images
+        if: needs.generate-images.outputs.images_found != 'true'
+        run: |
+          echo "⚠️ No images available from generate-images job"
+          mkdir -p output/${{ needs.initialize.outputs.article_id }}/images
+          # プレースホルダー画像の生成や警告メッセージの追加（オプション）
 
       - name: Create final package with Claude
         uses: anthropics/claude-code-base-action@beta
