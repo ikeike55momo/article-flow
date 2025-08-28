@@ -657,8 +657,12 @@ jobs:
             ```html
             <p>詳しい手順については、こちらの記事も参考にしてください。</p>
             
-            <!-- 記事内にブログカードを挿入 -->
-            [blog_card url="https://example.com/related-article"]
+            <!-- 記事内に関連リンクを挿入 -->
+            <div class="article-related-link">
+              <a href="https://example.com/related-article" target="_blank" rel="noopener">
+                関連記事を読む
+              </a>
+            </div>
             
             <p>上記の方法を試した後で、次のステップに進みます。</p>
             ```
